@@ -1,0 +1,3674 @@
+<!DOCTYPE html>
+<html style="height: 100%;">
+  <head>
+    <title>Google My Multi Map</title>
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDQd8K5aaM0V9ph55_d5FMKj0od2OCHOzI&libraries=places&callback=initMap"
+      async
+      defer
+      onerror="handleApiError()"
+    ></script>
+    <style>
+      body, html {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 80vh;
+        width: 100%;
+      }
+      #controls {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+      }
+      #searchInput {
+        height: 20px;
+        width: 300px;
+      }
+      #user-info {
+      text-align: left;
+      margin-bottom: 10px;
+      padding-left: 10px;
+      font-size: 16px;
+      color: #333;
+      }
+      .marker-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 5px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        background-color: #ffffff; /* เปลี่ยนพื้นหลังเป็นสีขาว */
+        color: black; /* เปลี่ยนข้อความทั้งหมดเป็นสีดำ */
+        font-family: Arial, sans-serif;
+      }
+      /* เปลี่ยนข้อความในแบรนด์ต่าง ๆ เป็นสีดำ */
+      .marker-content.bmw,
+      .marker-content.mercedes,
+      .marker-content.royal-enfield,
+      .marker-content.ford,
+      .marker-content.mini,
+      .marker-content.suzuki,
+      .marker-content.riddara {
+        background-color: #ffffff; /* พื้นหลังเป็นสีขาว */
+        color: black; /* ข้อความเป็นสีดำ */
+      }
+      .marker-content .text {
+        text-align: center;
+      }
+      .gm-style-iw {
+        padding: 8 !important;
+      }
+      .gm-style-iw-tc {
+        display: none;
+      }
+      .gm-ui-hover-effect {
+        display: none !important;
+      }
+      .custom-marker {
+        position: absolute;
+        cursor: pointer;
+        width: 32px;
+        height: 32px;
+        animation: bounce 0.10s infinite alternate;
+      }
+      @keyframes bounce {
+        from { transform: translateY(0px); }
+        to { transform: translateY(-10px); }
+      }
+      .marker-content img {
+        max-width: 100%; /* ทำให้รูปยืดเต็มขนาดกล่อง */
+        max-height: 100px; /* จำกัดความสูงของรูป */
+        height: auto; /* ยืดตามอัตราส่วน */
+        border-radius: 8px;
+      }
+      .marker-content ul {
+        text-align: left; /* จัดข้อความในรายการให้ชิดซ้าย */
+        padding-left: 20px; /* เพิ่มช่องว่างด้านซ้ายของรายการ */
+      }
+      .nearby-title {
+        font-weight: bold; /* ทำข้อความใน <p> ให้เป็นตัวหนา */
+      }
+      .marker-content {
+        border-radius: 0px; /* ปรับค่า border-radius ตามที่ต้องการ */
+        padding: 5px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        background-color: #ffffff;
+        color: black;
+        font-family: Arial, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <input id="searchInput" type="text" placeholder="ค้นหาสถานที่..." />
+      <select id="filter">
+        <option value="all">ทั้งหมด</option>
+        <option value="BMW">BMW</option>
+        <option value="Mercedes Benz">Mercedes Benz</option>
+        <option value="Royal Enfield">Royal Enfield</option>
+        <option value="Ford">Ford</option>
+        <option value="Mini">Mini</option>
+        <option value="Suzuki">Suzuki</option>
+        <option value="Riddara">Riddara</option>
+      </select>
+    </div>
+
+    <div id="user-info" style="padding: 0 10px; font-weight: bold;">
+    ยินดีต้อนรับ: <span id="user-name"></span>
+  </div>    
+
+    <div id="map"></div>
+    <script>
+      let map;
+      let markers = [];
+      let searchMarkers = [];
+      const locations = [
+        {
+            "lat": 13.8085613,
+            "lng": 100.5578292,
+            "type": "BMW",
+            "name": "Barcelona Motor (Vibhavadi)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เซ็นทรัลลาดพร้าว 849 ม.", "สวนจตุจักร 549 ม.", "ปตท.สำนักงานใหญ่ 1 กม."]
+        },
+        {
+            "lat": 13.8202764,
+            "lng": 100.5755628,
+            "type": "BMW",
+            "name": "Amorn Prestige (Ratchadapisek)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["มหาวิทยาลัยราชภัฏจันทรเกษม 170 ม.", "ศาลอาญา 427 ม.", "โรงแรมจัสติส 630 ม."]
+        },
+        {
+            "lat": 13.6583262,
+            "lng": 100.4315489,
+            "type": "BMW",
+            "name": "Europa Motor (Rama 2)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เดอะมอลล์ไลฟ์สโตร์ บางแค 1.3 กม.", "เดอะพาซิโอ พาร์ค กาญจนาภิเษก 1.5 กม.", "เซ็นทรัล พระราม 2 1.7 กม."]
+        },
+        {
+            "lat": 13.7417655,
+            "lng": 100.4708182,
+            "type": "BMW",
+            "name": "Europa Motor (Charansanitwong)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["สถานีรถไฟฟ้า MRT จรัญ 13 150 เมตร", "ตลาดนางลอย 200 เมตร", "ท่าเรือวัดอรุณราชวราราม (ท่าวัดอรุณฯ) 1.5 กิโลเมตร"]
+        },
+        {
+            "lat": 13.7525913,
+            "lng": 100.4318768,
+            "type": "BMW",
+            "name": "Europa Motor (Ratchapruek)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เซ็นทรัล เวสต์เกต 1.5 กม.", "อิเกีย บางใหญ่ 2 กม.", "โรงพยาบาลเกษมราษฎร์ รัตนาธิเบศร์ 3 กม."]
+        },
+        {
+            "lat": 13.9868022,
+            "lng": 100.6195131,
+            "type": "BMW",
+            "name": "Amorn Prestige (Rangsit)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["ฟิวเจอร์พาร์ค รังสิต 1 กม.", "เมเจอร์ รังสิต 1.5 กม.", "มหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต 2 กม."]
+        },
+        {
+            "lat": 13.7104773,
+            "lng": 100.4020364,
+            "type": "BMW",
+            "name": "Barcelona Motor (Bangkhae)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เดอะมอลล์ บางแค 1 กม.", "ซีคอน บางแค 1.5 กม.", "โรงพยาบาลบางกอกน้อย 2 กม."]
+        },
+        {
+            "lat": 13.9066169,
+            "lng": 100.5192033,
+            "type": "BMW",
+            "name": "German Auto (Chaengwattana)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["ไอที สแควร์ 1.5 กม.", "เมืองทองธานี 2 กม.", "ศูนย์นิทรรศการและการประชุมไบเทค 3 กม."]
+        },
+        {
+            "lat": 13.6692249,
+            "lng": 100.631455,
+            "type": "BMW",
+            "name": "German Auto (Bangna)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["อินเด็กซ์ ลิฟวิ่งมอลล์ บางนา 1 กม.", "เมกาบางนา 2 กม.", "สนามบินสุวรรณภูมิ 10 กม."]
+        },
+        {
+            "lat": 13.8639358,
+            "lng": 100.6166336,
+            "type": "BMW",
+            "name": "Performance Motors (Ramintra)",
+             "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เซ็นทรัล รามอินทรา 1 กม.", "เทสโก้ โลตัส รามอินทรา 1.5 กม.", "โรงพยาบาลสินแพทย์ 2 กม."]
+        },
+        {
+            "lat": 13.7974791,
+            "lng": 100.5089468,
+            "type": "BMW",
+            "name": "Performance Motors (Charansanitwong)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["สถานีรถไฟฟ้า MRT จรัญ 13 150 เมตร", "ตลาดนางลอย 200 เมตร", "ท่าเรือวัดอรุณราชวราราม (ท่าวัดอรุณฯ) 1.5 กม."]
+        },
+        {
+            "lat": 13.6868585,
+            "lng": 100.5195042,
+            "type": "BMW",
+            "name": "Millennium Auto (Rama 3)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เซ็นทรัล พระราม 3 1 กม.", "โรงพยาบาลกรุงเทพ 2 กม.", "ท่าเรือคลองเตย 3 กม."]
+        },
+        {
+            "lat": 13.71986,
+            "lng": 100.565168,
+            "type": "BMW",
+            "name": "Millennium Auto (Rama 4)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["เอ็มโพเรียม 1 กม.", "ดิเอ็มควอเทียร์ 1.5 กม.", "สวนลุมพินี 2 กม."]
+        },
+        {
+            "lat": 13.7805566,
+            "lng": 100.6178599,
+            "type": "BMW",
+            "name": "Millennium Auto (Ladprao)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["ยูเนี่ยนมอลล์ 1 กม.", "คริสตัล พาร์ค 1.5 กม.", "โรงพยาบาลวิภาวดี 2 กม."]
+        },
+        {
+            "lat": 13.7461608,
+            "lng": 100.5348809,
+            "type": "BMW",
+            "name": "Millennium Auto (Siam Paragon)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["ศูนย์การค้าสยามพารากอน ภายในอาคาร", "สยามเซ็นเตอร์ 200 เมตร", "สยามดิสคัฟเวอรี่ 300 เมตร"]
+        },
+        {
+            "lat": 13.7264743,
+            "lng": 100.5101039,
+            "type": "BMW",
+            "name": "Millennium Auto (Iconsiam)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["ไอคอนสยาม ภายในอาคาร", "เจริญนคร 1 กม.", "ท่าเรือไอคอนสยาม ภายในอาคาร"]
+        },
+        {
+            "lat": 13.7365991,
+            "lng": 100.6338657,
+            "type": "BMW",
+            "name": "Millennium Auto Pattanakarn",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["พาซิโอ้ 1 กม.", "ซีคอนสแควร์ 1.5 กม.", "โรงพยาบาลสมิติเวช ศรีนครินทร์ 2 กม."]
+        },
+            {
+            "lat": 13.8637738,
+            "lng": 100.5708426,
+            "type": "BMW",
+            "name": "Performance Motors (Don Mueang)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["สนามบินดอนเมือง 2 กม.", "เมืองทองธานี 5 กม.", "ศูนย์นิทรรศการและการประชุมไบเทค 10 กม."]
+        },
+        {
+            "lat": 17.4327813,
+            "lng": 102.7887468,
+            "type": "BMW",
+            "name": "Nat Bavarian (Udonthani)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+           "nearby": ["UD Town 2 กม.", "หอประชุมศาลากลางจังหวัดอุดรธานี 3 กม.", "สนามบินอุดรธานี 5 กม."]
+        },
+        {
+            "lat": 16.4399886,
+            "lng": 102.8189953,
+            "type": "BMW",
+            "name": "Sky Autohaus (Khonkaen)",
+           "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Plaza Khon Kaen 2 กม.", "สวนสาธารณะบึงทุ่งสร้าง 3 กม.", "สนามบินขอนแก่น 5 กม."]
+        },
+        {
+            "lat": 14.9655619,
+            "lng": 102.0640151,
+            "type": "BMW",
+            "name": "Cherdchai Autohaus (Nakhon Ratchasima)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Terminal 21 Korat 3 กม.", "สวนสัตว์นครราชสีมา 4 กม.", "สนามบินนครราชสีมา 5 กม."]
+        },
+        {
+            "lat": 15.2448453,
+            "lng": 104.8472995,
+            "type": "BMW",
+            "name": "Millennium Auto (Ubon Ratchathani)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Plaza Ubon Ratchathani 3 กม.", "สวนสาธารณะหนองหาน 4 กม.", "สนามบินอุบลราชธานี 5 กม."]
+        },
+        {
+            "lat": 12.795897,
+            "lng": 100.917176,
+            "type": "BMW",
+            "name": "German Auto (Pattaya)",
+           "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Festival Pattaya Beach 2 กม.", "ถนนชายหาดพัทยา 3 กม.", "สนามบินอู่ตะเภา 5 กม."]
+        },
+        {
+            "lat": 12.6959899,
+            "lng": 101.2692479,
+            "type": "BMW",
+            "name": "Nelson's Autohaus (Rayong)",
+             "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+             "nearby": ["Central Plaza Rayong 2 กม.", "หาดแหลมแม่พิมพ์ 5 กม.", "ตลาดบ้านเพ 5 กม."]
+        },
+        {
+            "lat": 13.3323953,
+            "lng": 100.9947132,
+            "type": "BMW",
+            "name": "Nelson's Autohaus (Chonburi)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+           "nearby": ["Central Plaza Chonburi 3 กม.", "สวนสาธารณะหาดบางแสน 5 กม.", "วัดเขาอ้อ 4 กม."]
+        },
+        {
+            "lat": 7.0084015,
+            "lng": 100.4904511,
+            "type": "BMW",
+            "name": "Millennium Auto (Hatyai)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+           "nearby": ["Central Festival Hatyai 2 กม.", "ตลาดกิมหยง 3 กม.", "สนามบินหาดใหญ่ 5 กม."]
+        },
+        {
+            "lat": 9.1341949,
+            "lng": 99.3334198,
+            "type": "BMW",
+            "name": "Millennium Auto Group (Surat Thani)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Plaza Surat Thani 3 กม.", "สวนสาธารณะศรีนครินทร์ 4 กม.", "สะพานลอยไฟฟ้าหมื่นห้า 5 กม."]
+        },
+        {
+            "lat": 7.9204023,
+            "lng": 98.3698491,
+            "type": "BMW",
+           "name": "Millennium Auto (Phuket)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Festival Phuket 3 กม.", "หาดป่าตอง 5 กม.", "สนามบินภูเก็ต 5 กม."]
+        },
+        {
+            "lat": 18.8054786,
+            "lng": 99.5331139,
+            "type": "BMW",
+            "name": "Barcelona Motor (Chiangmai)",
+           "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Central Festival Chiangmai 4 กม.", "สวนสัตว์เชียงใหม่ 5 กม.", "สนามบินเชียงใหม่ 5 กม."]
+        },
+        {
+           "lat": 16.7427222,
+           "lng": 100.1780972,
+           "type": "BMW",
+            "name": "Nithiboon (Phitsanulok)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+           "nearby": ["Central Plaza Phitsanulok 3 กม.", "วัดพระศรีรัตนมหาธาตุ 4 กม.", "สนามบินพิษณุโลก 5 กม."]
+        },
+        {
+            "lat": 14.3035907,
+            "lng": 100.6125205,
+            "type": "BMW",
+            "name": "Performance Motors (Ayutthaya)",
+            "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
+            "nearby": ["Siam Park City 2 กม.", "วัดพระศรีสรรเพชญ์ 4 กม.", "สนามบินดอนเมือง 5 กม."]
+        }, // BMW ทั้งหมด 33 โชว์รูม
+        {
+            "lat": 13.7369466,
+            "lng": 100.543675,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ธนบุรีพานิช จำกัด (สาขา ลุมพินี)",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["สวนลุมพินี 0.8 กม.", "หอศิลปวัฒนธรรมแห่งกรุงเทพมหานคร 0.9 กม.", "สถานทูตสหรัฐอเมริกา 1.0 กม."]
+        },
+        {
+            "lat": 13.8535425,
+            "lng": 100.5504912,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ธนบุรีพานิช จำกัด (สาขา งามวงศ์วาน)",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เดอะมอลล์ งามวงศ์วาน 0.8 กม.", "พันทิพย์ พลาซ่า งามวงศ์วาน 1.2 กม.", "โรงพยาบาลนนทเวช 1.5 กม."]
+        },
+        {
+            "lat": 13.7680062,
+            "lng": 100.5496039,
+            "type": "Mercedes Benz",
+            "name": "บริษัท สตาร์แฟลก จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล เฟสติวัล อีสต์วิลล์ 0.9 กม.", "CDC Crystal Design Center 1.5 กม.", "เทสโก้ โลตัส เอ็กซ์ตร้า รามอินทรา 1.9 กม."]
+        },
+        {
+            "lat": 13.7792573,
+            "lng": 100.5441226,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ ราชครู จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["สถานีรถไฟฟ้าบีทีเอส สนามเป้า 0.8 กม.", "อนุสาวรีย์ชัยสมรภูมิ 1.5 กม.", "โรงพยาบาลพญาไท 2 1.6 กม."]
+        },
+        {
+            "lat": 13.7837133,
+            "lng": 100.453216,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ ตลิ่งชัน จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เดอะเซอร์เคิล ราชพฤกษ์ 1.2 กม.", "ตลาดน้ำตลิ่งชัน 1.5 กม.", "โรงพยาบาลเจ้าพระยา 1.8 กม."]
+        },
+        {
+            "lat": 13.688617,
+            "lng": 100.5158893,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ พระราม 3 จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เอเชียทีค เดอะ ริเวอร์ฟร้อนท์ 1.7 กม.", "เซ็นทรัล พระราม 3 1.2 กม.", "โรงพยาบาลเจริญกรุงประชารักษ์ 1.9 กม."]
+        },
+        {
+            "lat": 13.8327599,
+            "lng": 100.5586834,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ บีเคเค วิภาวดี จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล ลาดพร้าว 1.5 กม.", "ยูเนี่ยน มอลล์ 1.8 กม.", "สวนจตุจักร 1.9 กม."]
+        },
+        {
+            "lat": 13.7727513,
+            "lng": 100.6057203,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ไพรม์มัส ออโต้เฮ้าส์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เมกาบางนา 1.6 กม.", "อิเกีย บางนา 1.6 กม.", "โรงพยาบาลไทยนครินทร์ 1.8 กม."]
+        },
+        {
+            "lat": 13.7051032,
+            "lng": 100.4059625,
+            "type": "Mercedes Benz",
+            "name": "บริษัท บีเคเค ออโต้เฮาส์ กาญจนาภิเษก จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เดอะพาซิโอ พาร์ค กาญจนาภิเษก 1.3 กม.", "โฮมโปร สาขากาญจนาภิเษก 1.7 กม.", "โรงพยาบาลเกษมราษฎร์ บางแค 2.0 กม."]
+        },
+        {
+            "lat": 13.661416,
+            "lng": 100.4384583,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เมโทร ออโต้เฮ้าส์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เดอะมอลล์ บางแค 0.9 กม.", "ซีคอน บางแค 1.5 กม.", "โรงพยาบาลเกษมราษฎร์ บางแค 1.6 กม."]
+        },
+        {
+            "lat": 13.7361514,
+            "lng": 100.6378327,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ทีทีซี มอเตอร์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล บางนา 1.5 กม.", "ไบเทค บางนา 1.9 กม.", "โรงพยาบาลบางนา 1 1.7 กม."]
+        },
+        {
+            "lat": 13.7090848,
+            "lng": 100.6441646,
+            "type": "Mercedes Benz",
+            "name": "บริษัท สวนหลวง ออโต้เฮ้าส์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["สถานีรถไฟฟ้าแอร์พอร์ตลิงก์ หัวหมาก 1.2 กม.", "เดอะไนน์ พระราม 9 1.5 กม.", "โรงพยาบาลสมิติเวช ศรีนครินทร์ 1.8 กม."]
+        },
+        {
+            "lat": 13.9100595,
+            "lng": 100.3662664,
+            "type": "Mercedes Benz",
+            "name": "บริษัท แอทต้า ออโต้เฮ้าส์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["ฟอร์ด มหานคร ออโตโมบิล (รัตนาธิเบศร์) ประมาณ 2 กม.", "โตโยต้า เอกนิมิตไทย (สำนักงานใหญ่) 2.1 กม.", "เซ็นทรัล พลาซา เวสต์เกต 2.5 กม."]
+        },
+        {
+            "lat": 13.9219603,
+            "lng": 100.4708565,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เค้งหงษ์ทอง จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["อิมแพ็ค อารีน่า เมืองทองธานี 1.5 กม.", "ศูนย์การค้าเมืองทองธานี 1.8 กม.", "วัดพระศรีมหาธาตุวรมหาวิหาร 1.9 กม."]
+        },
+        {
+            "lat": 13.6657866,
+            "lng": 100.6471888,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ บีเคเค กรุ๊ป จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล บางนา 1.5 กม.", "ไบเทค บางนา 2 กม.", "โรงพยาบาลไทยนครินทร์ 1.8 กม."]
+        },
+        {
+            "lat": 14.0057412,
+            "lng": 100.5548365,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์เภตรา จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["โรงพยาบาลกรุงสยามเซนต์คาร์ลอส ประมาณ 1.5 กม.", "มหาวิทยาลัยปทุมธานี ประมาณ 1.8 กม.", "ศูนย์การค้าฟิวเจอร์พาร์ครังสิต ประมาณ 2 กม."]
+        },
+        {
+            "lat": 13.811121,
+            "lng": 100.0758461,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์เพชรรัตน์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["พระปฐมเจดีย์ ประมาณ 1.5 กม.", "มหาวิทยาลัยศิลปากร วิทยาเขตพระราชวังสนามจันทร์ ประมาณ 2 กม.", "สถานีรถไฟนครปฐม ประมาณ 1.8 กม."]
+        },
+        {
+            "lat": 16.4456262,
+            "lng": 102.7905417,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ออโต้โพลิส จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["สนามบินขอนแก่น ประมาณ 1.5 กม.", "มหาวิทยาลัยขอนแก่น ประมาณ 2 กม.", "เซ็นทรัลพลาซา ขอนแก่น ประมาณ 2 กม."]
+        },
+        {
+            "lat": 17.3931273,
+            "lng": 102.8140948,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ อุดรธานี จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล อุดรธานี 1.4 กม.", "สวนสาธารณะหนองประจักษ์ 1.5 กม.", "ตลาดสดเทศบาล 1 1.7 กม."]
+        },
+        {
+            "lat": 15.3263759,
+            "lng": 104.8314068,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ทีทีซี มอเตอร์ อุบลราชธานี จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล อุบลราชธานี 0.9 กม.", "วัดหนองป่าพง 1.3 กม.", "ศาลหลักเมืองอุบลราชธานี 1.8 กม."]
+        },
+        {
+            "lat": 14.9513274,
+            "lng": 102.0252222,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เอ็มบี โคราช ออโตเฮาส์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เดอะมอลล์ โคราช 0.8 กม.", "เทอร์มินอล 21 โคราช 1.3 กม.", "ตลาดสดแม่กิมเฮง 1.5 กม."]
+        },
+        {
+            "lat": 12.5602554,
+            "lng": 99.9519732,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ที เอส ที หัวหิน จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["ตลาดโต้รุ่งหัวหิน 0.9 กม.", "หาดหัวหิน 1.2 กม.", "สถานีรถไฟหัวหิน 1.6 กม."]
+        },
+        {
+            "lat": 13.7953492,
+            "lng": 99.9140436,
+            "type": "Mercedes Benz",
+            "name": "บริษัท ที เอส ที เมอร์เซเดส เบนซ์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["สนามกอล์ฟ Black Mountain 0.6 กม.", "วัดห้วยมงคล 1.1 กม.", "สวนน้ำ Black Mountain 1.8 กม."]
+        },
+        {
+            "lat": 13.31471,
+            "lng": 100.957016,
+            "type": "Mercedes Benz",
+            "name": "บริษัท จิตต์ชัยชลบุรี จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัลพลาซา ชลบุรี 1.6 กม.", "โรงพยาบาลชลบุรี 1.2 กม.", "ศาลากลางจังหวัดชลบุรี 1.9 กม."]
+        },
+        {
+            "lat": 12.600007,
+            "lng": 102.1030545,
+            "type": "Mercedes Benz",
+            "name": "บริษัท จันทบุรี เจพี มอเตอร์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["โรบินสัน จันทบุรี 1.0 กม.", "ศาลากลางจังหวัดจันทบุรี 1.5 กม.", "ตลาดน้ำพุ จันทบุรี 1.7 กม."]
+        },
+        {
+            "lat": 12.923594,
+            "lng": 100.8824376,
+            "type": "Mercedes Benz",
+            "name": "ไพร์มมัส ออโต้เฮ้าส์ พัทยา",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล เฟสติวัล พัทยา บีช 1.1 กม.", "หาดพัทยา 1.3 กม.", "Walking Street พัทยา 1.8 กม."]
+        },
+        {
+            "lat": 7.9234335,
+            "lng": 98.3962038,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เบนซ์ภูเก็ต จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล ภูเก็ต 1.2 กม.", "โรงพยาบาลกรุงเทพ ภูเก็ต 1.5 กม.", "ตลาดดาวน์ทาวน์ภูเก็ต 1.9 กม."]
+        },
+        {
+            "lat": 7.0191354,
+            "lng": 100.4925278,
+            "type": "Mercedes Benz",
+            "name": "บริษัท สงวนวัฒนาเอนเตอร์ไพร์ส จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["มหาวิทยาลัยสงขลานครินทร์ วิทยาเขตหาดใหญ่ ประมาณ 1.5 กม.", "โรงพยาบาลสงขลานครินทร์ ประมาณ 1.8 กม.", "เซ็นทรัลเฟสติวัล หาดใหญ่ ประมาณ 2 กม."]
+        },
+        {
+            "lat": 9.1088518,
+            "lng": 99.2888567,
+            "type": "Mercedes Benz",
+            "name": "บริษัท พรีเมจ ออโตโมบิล (ประเทศไทย) จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["ห้างสรรพสินค้าเซ็นทรัลพลาซา สุราษฎร์ธานี ประมาณ 1.5 กม.", "มหาวิทยาลัยราชภัฏสุราษฎร์ธานี ประมาณ 2 กม.", "สถานีรถไฟสุราษฎร์ธานี ประมาณ 1.8 กม."]
+        },
+        {
+            "lat": 18.80031,
+            "lng": 98.993412,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เจริญมอเตอร์เบนซ์ จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล เชียงใหม่ 1.5 กม.", "สวนสัตว์เชียงใหม่ 2 กม.", "ถนนคนเดิน 1.8 กม."]
+        },
+        {
+            "lat": 16.8163324,
+            "lng": 100.3121888,
+            "type": "Mercedes Benz",
+            "name": "บริษัท พิษณุโลกนามทอง จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล พลาซา พิษณุโลก 1.5 กม.", "โรงพยาบาลพุทธชินราช 1.8 กม.", "วัดพระศรีรัตนมหาธาตุ 2 กม."]
+        },
+        {
+            "lat": 19.8737421,
+            "lng": 99.7232673,
+            "type": "Mercedes Benz",
+            "name": "บริษัท เจริญมอเตอร์ เชียงราย จำกัด",
+            "image": "https://static.vecteezy.com/system/resources/previews/022/498/229/original/mercedes-benz-logos-popular-brands-of-cars-isolated-on-transparent-background-3d-render-free-png.png",
+            "nearby": ["เซ็นทรัล เชียงราย 1.5 กม.", "วัดพระสิงห์ 1.8 กม.", "สวนสาธารณะ 2 กม."]
+        },
+        {
+            "lat": 16.8648606,
+            "lng": 100.2127901,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Phitsanulok",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดพระศรีรัตนมหาธาตุวรมหาวิหาร 2.5 กม.", "สวนชมน่านเฉลิมพระเกียรติ 3.0 กม.", "พิพิธภัณฑ์พื้นบ้านจ่าทวี 4.5 กม."]
+        },
+        {
+            "lat": 18.8196937,
+            "lng": 98.9813189,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Chiang Mai",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดพระสิงห์วรมหาวิหาร 1.2 กม.", "ประตูท่าแพ 1.5 กม.", "ตลาดวโรรส 2.0 กม."]
+        },
+        {
+            "lat": 19.9244112,
+            "lng": 99.845112,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Chiang Rai",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["หอนาฬิกาเชียงราย 1.0 กม.", "วัดพระแก้ว 1.5 กม.", "ตลาดไนท์บาซาร์เชียงราย 2.0 กม."]
+        },
+        {
+            "lat": 17.3008566,
+            "lng": 102.8586708,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Udonthani",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซาอุดรธานี 1.0 กม.", "สวนสาธารณะหนองประจักษ์ศิลปาคม 2.5 กม.", "วัดโพธิสมภรณ์ 3.0 กม."]
+        },
+        {
+            "lat": 15.183135,
+            "lng": 104.8080062,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Ubonrathathani",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดทุ่งศรีเมือง 1.5 กม.", "สวนสาธารณะห้วยม่วง 3.0 กม.", "พิพิธภัณฑสถานแห่งชาติอุบลราชธานี 2.0 กม."]
+        },
+        {
+            "lat": 14.9796595,
+            "lng": 102.0805589,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Korat",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["อนุสาวรีย์ท้าวสุรนารี 1.0 กม.", "เทอร์มินอล 21 โคราช 2.5 กม.", "สวนสัตว์นครราชสีมา 4.0 กม."]
+        },
+        {
+            "lat": 16.4633044,
+            "lng": 102.7702361,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Khon Kaen",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซ่าขอนแก่น 1.5 กม.", "บึงแก่นนคร 2.0 กม.", "วัดหนองแวง 3.5 กม."]
+        },
+        {
+            "lat": 16.1793003,
+            "lng": 103.2981002,
+            "type": "Royal Enfield", 
+            "name": "Royal Enfield Mahasarakham",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["มหาวิทยาลัยมหาสารคาม 2.0 กม.", "วัดมหาชัย 1.5 กม.", "ตลาดไนท์บาซาร์มหาสารคาม 1.0 กม."]
+        },
+        {
+            "lat": 13.8249089,
+            "lng": 100.4398828,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Rama 5",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซา รัตนาธิเบศร์ 3.0 กม.", "วัดสวนแก้ว 4.0 กม.", "ตลาดพระราม 5 1.5 กม."]
+        },
+        {
+            "lat": 13.7218334,
+            "lng": 100.2989337,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Phutthamonthon Sai 5",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["มหาวิทยาลัยมหิดล ศาลายา 4.5 กม.", "พุทธมณฑล 3.0 กม.", "ตลาดน้ำดอนหวาย 5.0 กม."]
+        },
+        {
+            "lat": 14.3147987,
+            "lng": 100.6123629,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Ayuthaya",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดมหาธาตุ 1.0 กม.", "อุทยานประวัติศาสตร์พระนครศรีอยุธยา 1.5 กม.", "ตลาดน้ำอโยธยา 3.0 กม."]
+        },
+        {
+            "lat": 14.7887483,
+            "lng": 100.676946,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Lopburi",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["พระปรางค์สามยอด 0.5 กม.", "วัดพระศรีรัตนมหาธาตุ 0.7 กม.", "ตลาดนัดคลองถมลพบุรี 1.2 กม."]
+        },
+        {
+            "lat": 15.6928256,
+            "lng": 100.1225794,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Nakhon Sawan",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดคีรีวงศ์ 2.0 กม.", "สวนสาธารณะสระแก้ว 1.5 กม.", "พาสาน (จุดบรรจบแม่น้ำเจ้าพระยา) 3.5 กม."]
+        },
+        {
+            "lat": 13.7486352,
+            "lng": 100.5687484,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield (Asoke-New Petchburi Rd)",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซา แกรนด์ พระราม 9 1.5 กม.", "ศูนย์การค้าเทอร์มินัล 21 2.0 กม.", "สวนเบญจกิติ 3.0 กม."]
+        },
+        {
+            "lat": 14.4750777,
+            "lng": 100.1092455,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Suphanburi",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดป่าเลไลยก์วรวิหาร 2.0 กม.", "พิพิธภัณฑสถานแห่งชาติสุพรรณบุรี 1.5 กม.", "ตลาดสามชุก 4.5 กม."]
+        },
+        {
+            "lat": 13.9422675,
+            "lng": 100.6144445,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Don Mueang",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["สนามบินดอนเมือง 2.0 กม.", "เซ็นทรัลพลาซา แจ้งวัฒนะ 5.0 กม.", "อิมแพ็ค เมืองทองธานี 5.0 กม."]
+        },
+        {
+            "lat": 13.7225549,
+            "lng": 100.4608491,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Thonburi (Bang Wa)",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เดอะมอลล์ บางแค 2.5 กม.", "ซีคอน บางแค 3.0 กม.", "สถานีรถไฟฟ้าบางหว้า 1.0 กม."]
+        },
+        {
+            "lat": 13.7041957,
+            "lng": 100.5449368,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Rama 3",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซา พระราม 3 1.0 กม.", "เอเชียทีค เดอะ ริเวอร์ฟร้อนท์ 3.5 กม.", "วัดปริวาสราชสงคราม 2.0 กม."]
+        },
+        {
+            "lat": 13.802725,
+            "lng": 100.5610307,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Vibhavadi 20",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เซ็นทรัลพลาซา ลาดพร้าว 2.5 กม.", "สวนจตุจักร 3.0 กม.", "ยูเนียน มอลล์ 2.0 กม."]
+        },
+        {
+            "lat": 13.8872428,
+            "lng": 100.6432749,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Vacharaphol",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["เพลินนารี มอลล์ 1.5 กม.", "วัดพระศรีมหาธาตุวรมหาวิหาร 3.0 กม.", "ตลาดยิ่งเจริญ 2.5 กม."]
+        },
+	      {
+            "lat": 13.643794,
+            "lng": 100.591375,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Samrong",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["อิมพีเรียล เวิลด์ สำโรง 1.0 กม.", "ตลาดสดสำโรง 0.8 กม.", "ศูนย์การค้าแบงค็อก มอลล์ 4.0 กม."]
+        },
+        {
+            "lat": 14.5356884,
+            "lng": 100.9108199,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Saraburi",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["วัดพระพุทธฉาย 4.5 กม.", "อุทยานแห่งชาติน้ำตกเจ็ดสาวน้อย 3.5 กม.", "ตลาดนัดสระบุรี 2.0 กม."]
+        },
+        {
+            "lat": 12.9257152,
+            "lng": 100.8991802,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Pattaya",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["หาดพัทยา 2.0 กม.", "วัดพระใหญ่ 3.0 กม.", "ถนนคนเดินพัทยา 2.5 กม."]
+        },
+        {
+            "lat": 7.0090308,
+            "lng": 100.4854782,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Hatyai",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["ตลาดกิมหยง 1.0 กม.", "เซ็นทรัลเฟสติวัล หาดใหญ่ 2.5 กม.", "วัดฉื่อฉาง 3.0 กม."]
+        },
+        {
+            "lat": 7.9588599,
+            "lng": 98.3844147,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Phuket",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["หาดป่าตอง 4.0 กม.", "ย่านเมืองเก่าภูเก็ต 3.5 กม.", "เซ็นทรัล ภูเก็ต ฟลอเรสต้า 2.0 กม."]
+        },
+        {
+            "lat": 9.1396796,
+            "lng": 99.3278251,
+            "type": "Royal Enfield",
+            "name": "Royal Enfield Surat Thani",
+            "image": "https://i.pinimg.com/564x/45/f6/60/45f660eb3d6896a9f7b6f6538bd5e36f.jpg",
+            "nearby": ["ตลาดศาลเจ้า 1.5 กม.", "ห้างเซ็นทรัลพลาซ่า สุราษฎร์ธานี 3.0 กม.", "อุทยานแห่งชาติเขาสก 4.5 กม."]
+        },
+            {
+        "lat": 13.6949838,
+        "lng": 100.6008857,
+        "type": "Ford",
+        "name": "ฟอร์ด สุขุมวิท 62",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "สถานีรถไฟฟ้า BTS ปุณณวิถี 1.5 กม.",
+            "ห้างสรรพสินค้าเซ็นทรัล บางนา 3.5 กม.",
+            "ห้างสรรพสินค้าบิ๊กซี บางนา 4 กม."
+        ]
+    },
+    {
+        "lat": 13.6681178,
+        "lng": 100.4476988,
+        "type": "Ford",
+        "name": "ฟอร์ด พระราม 2",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล พระราม 2 2.5 กม.",
+            "ห้างสรรพสินค้าบิ๊กซี พระราม 2 3 กม.",
+            "โรงพยาบาลนครธน 3 กม."
+        ]
+    },
+    {
+        "lat": 13.7624905,
+        "lng": 100.6395657,
+        "type": "Ford",
+        "name": "ฟอร์ด อาร์เอ็มเอ หัวหมาก",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเดอะมอลล์ บางกะปิ 2 กม.",
+            "โรงพยาบาลรามคำแหง 3 กม.",
+            "มหาวิทยาลัยรามคำแหง 3.5 กม."
+        ]
+    },
+    {
+        "lat": 13.8238973,
+        "lng": 100.4490852,
+        "type": "Ford",
+        "name": "ฟอร์ด ราชพฤกษ์ พระราม 5",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": ["ห้างสรรพสินค้าเซ็นทรัล ปิ่นเกล้า 3 กม.", "โรงพยาบาลศิริราช 5 กม.", "ห้างสรรพสินค้าเดอะมอลล์ ท่าพระ 4.5 กม."]
+    },
+    {
+        "lat": 14.0107383,
+        "lng": 100.5195274,
+        "type": "Ford",
+        "name": "ฟอร์ด ออโต้ แกลลอรี่",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเดอะมอลล์ บางกะปิ 3.5 กม.",
+            "โรงพยาบาลรามคำแหง 5 กม.",
+            "มหาวิทยาลัยรามคำแหง 4 กม."
+        ]
+    },
+    {
+        "lat": 13.5905153,
+        "lng": 100.8277371,
+        "type": "Ford",
+        "name": "ฟอร์ด รุ่งเจริญ บางนา",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "เมกาบางนา 4 กม.",
+            "เซ็นทรัล บางนา 6 กม.",
+            "สวนหลวง ร.9 6 กม."
+        ]
+    },
+    {
+        "lat": 14.309835,
+        "lng": 100.6097483,
+        "type": "Ford",
+        "name": "ฟอร์ด อยุธยา",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล อยุธยา 3 กม.",
+            "โรงพยาบาลพระนครศรีอยุธยา 4 กม.",
+            "ตลาดอยุธยา 4.5 กม."
+        ]
+    },
+    {
+        "lat": 14.2091464,
+        "lng": 101.201293,
+        "type": "Ford",
+        "name": "ฟอร์ด นารา นครนายก",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล นครนายก 3.5 กม.",
+            "โรงพยาบาลนครนายก 4 กม.",
+           "ตลาดนครนายก 5 กม."
+        ]
+    },
+    {
+        "lat": 15.748977,
+        "lng": 100.1223693,
+        "type": "Ford",
+        "name": "ฟอร์ด นครสวรรค์ (2002)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล นครสวรรค์ 3.5 กม.",
+            "โรงพยาบาลนครสวรรค์ 4 กม.",
+            "ตลาดนครสวรรค์ 5 กม."
+        ]
+    },
+    {
+        "lat": 13.575516,
+        "lng": 99.252755,
+        "type": "Ford",
+        "name": "ฟอร์ด เตชอัมพร ราชบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "วัดพระศรีอารย์ 2.6 กม.",
+            "โรงพยาบาลราชบุรี 2.5 กม.",
+           "ตลาดราชบุรี 2 กม."
+        ]
+    },
+    {
+        "lat": 13.8675776,
+        "lng": 99.8208414,
+        "type": "Ford",
+        "name": "ฟอร์ด เตชอัมพร บ้านโป่ง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าเทสโก้ โลตัส บ้านโป่ง 2.5 กม.",
+             "โรงพยาบาลบ้านโป่ง 2.8 กม.",
+            "ตลาดบ้านโป่ง 2 กม."
+        ]
+    },
+    {
+        "lat": 14.7995585,
+        "lng": 100.6585578,
+        "type": "Ford",
+        "name": "ฟอร์ด ลพบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "โรบินสัน ไลฟ์สไตล์ ลพบุรี 5.1 กม.",
+            "โรงพยาบาลลพบุรี 2.5 กม.",
+            "ตลาดลพบุรี 2.8 กม."
+        ]
+    },
+     {
+        "lat": 14.7667764,
+        "lng": 100.4230385,
+        "type": "Ford",
+        "name": "ฟอร์ด แอลบีเอ็ม ออโต้ ลพบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "โรงพยาบาลลพบุรี 2.5 กม.",
+            "ตลาดลพบุรี 2.8 กม.",
+           "วัดพระศรีอารย์ 2.6 กม."
+        ]
+    },
+    {
+        "lat": 14.5028083,
+        "lng": 100.9146013,
+        "type": "Ford",
+        "name": "ฟอร์ด ออโต้ แกลลอรี่ สระบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน สระบุรี 3 กม.",
+            "โรงพยาบาลสระบุรี 2.8 กม.",
+            "ตลาดสระบุรี 2.5 กม."
+        ]
+    },
+    {
+        "lat": 14.6288139,
+        "lng": 101.1715456,
+        "type": "Ford",
+        "name": "ฟอร์ด มวกเหล็ก",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโลตัส มวกเหล็ก 2.5 กม.",
+            "โรงพยาบาลมวกเหล็ก 3 กม.",
+            "ตลาดมวกเหล็ก 2.8 กม."
+        ]
+    },
+    {
+        "lat": 14.9077782,
+        "lng": 100.4061706,
+        "type": "Ford",
+        "name": "ฟอร์ด สิงห์บุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี สิงห์บุรี 3 กม.",
+            "โรงพยาบาลสิงห์บุรี 2.5 กม.",
+            "ตลาดสิงห์บุรี 2.8 กม."
+        ]
+    },
+    {
+        "lat": 14.4218152,
+        "lng": 100.1448684,
+        "type": "Ford",
+        "name": "ฟอร์ด พี มอเตอร์ สุพรรณบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรสินค้าโรบินสัน สุพรรณบุรี 2.8 กม.",
+            "โรงพยาบาลสุพรรณบุรี 2.5 กม.",
+             "ตลาดสุพรรณบุรี 2.6 กม."
+        ]
+    },
+    {
+        "lat": 14.588042,
+        "lng": 100.3074419,
+        "type": "Ford",
+        "name": "ฟอร์ด มีเจริญ อ่างทอง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าเทสโก้ โลตัส อ่างทอง 2.5 กม.",
+            "โรงพยาบาลอ่างทอง 2.8 กม.",
+           "ตลาดอ่างทอง 2.6 กม."
+         ]
+    },
+    {
+        "lat": 16.5223496,
+        "lng": 103.4794433,
+        "type": "Ford",
+        "name": "ฟอร์ด วีอาร์พี กาฬสินธุ์",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "โลตัส กุฉินารายณ์ 3.5 กม.",
+            "โรงพยาบาลกาฬสินธุ์ 2.5 กม.",
+            "ตลาดกาฬสินธุ์ 2.8 กม."
+        ]
+    },
+    {
+        "lat": 16.4440967,
+        "lng": 102.5129719,
+        "type": "Ford",
+        "name": "ขอนแก่น สหชัย ฟอร์ด เซลส์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี ขอนแก่น 2.8 กม.",
+            "โรงพยาบาลขอนแก่น 2.5 กม.",
+            "ตลาดขอนแก่น 3 กม."
+        ]
+    },
+    {
+        "lat": 16.7044309,
+        "lng": 103.0449189,
+        "type": "Ford",
+        "name": "ขอนแก่น สหชัย ฟอร์ด เซลส์ (กระนวน)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "โรงพยาบาลกระนวน 2.5 กม.",
+             "ตลาดกระนวน 2.8 กม.",
+            "ห้างสรรพสินค้าเซ็นทรัล ขอนแก่น 3.5 กม."
+        ]
+    },
+    {
+        "lat": 16.5468349,
+        "lng": 102.0925308,
+        "type": "Ford",
+        "name": "ขอนแก่น สหชัย ฟอร์ด เซลส์ (ชุมแพ)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล ขอนแก่น 3 กม.",
+           "โรงพยาบาลชุมแพ 2.5 กม.",
+           "ตลาดชุมแพ 2.8 กม."
+        ]
+    },
+     {
+        "lat": 16.4440967,
+        "lng": 102.7987934,
+        "type": "Ford",
+        "name": "ฟอร์ด ขอนแก่น สหชัย (มะลิวัลย์)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าเซ็นทรัล ขอนแก่น 3.5 กม.",
+            "โรงพยาบาลขอนแก่น 2.5 กม.",
+             "ตลาดขอนแก่น 3 กม."
+        ]
+    },
+    {
+        "lat": 16.0874309,
+        "lng": 102.7247863,
+        "type": "Ford",
+        "name": "ฟอร์ด อีสาน ออโตโมบิล (บ้านไผ่)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโลตัส บ้านไผ่ 2.5 กม.",
+            "โรงพยาบาลบ้านไผ่ 2.8 กม.",
+            "ตลาดบ้านไผ่ 2.6 กม."
+        ]
+    },
+   {
+        "lat": 16.3931755,
+        "lng": 102.7936288,
+        "type": "Ford",
+        "name": "ฟอร์ด วี กรุ๊ป คาร์ ขอนแก่น",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี ขอนแก่น 2.8 กม.",
+            "โรงพยาบาลขอนแก่น 2.5 กม.",
+            "ตลาดขอนแก่น 3 กม."
+        ]
+    },
+    {
+        "lat": 18.3934097,
+        "lng": 103.5459213,
+        "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ (บึงกาฬ)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี บึงกาฬ 2.8 กม.",
+            "โรงพยาบาลบึงกาฬ 2.5 กม.",
+            "ตลาดบึงกาฬ 2.6 กม."
+        ]
+    },
+    {
+        "lat": 14.9668327,
+        "lng": 103.0566303,
+        "type": "Ford",
+        "name": "ฟอร์ด ไฮเทค บุรีรัมย์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส บุรีรัมย์ 2.5 กม.",
+            "โรงพยาบาลบุรีรัมย์ 2.8 กม.",
+            "ตลาดบุรีรัมย์ 2.6 กม."
+         ]
+    },
+    {
+        "lat": 14.6319292,
+        "lng": 102.814097,
+        "type": "Ford",
+        "name": "ฟอร์ด ไฮเทค บุรีรัมย์ (นางรอง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส นางรอง 3 กม.",
+            "โรงพยาบาลนางรอง 2.5 กม.",
+            "ตลาดนางรอง 2.8 กม."
+        ]
+    },
+    {
+        "lat": 15.5462347,
+        "lng": 103.1990817,
+        "type": "Ford",
+        "name": "ฟอร์ด วีอาร์พี มหาสารคาม (พยัคฆภูมิพิสัย)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส พยัคฆภูมิพิสัย 3.5 กม.",
+            "โรงพยาบาลพยัคฆภูมิพิสัย 2.5 กม.",
+            "ตลาดพยัคฆภูมิพิสัย 2.8 กม."
+         ]
+    },
+    {
+        "lat": 16.1665077,
+        "lng": 103.3291564,
+        "type": "Ford",
+        "name": "ฟอร์ด วีอาร์พี มหาสารคาม",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล มหาสารคาม 3 กม.",
+            "โรงพยาบาลมหาสารคาม 2.5 กม.",
+           "ตลาดมหาสารคาม 2.8 กม."
+         ]
+    },
+    {
+        "lat": 16.4407183,
+        "lng": 102.5305226,
+        "type": "Ford",
+        "name": "ฟอร์ด อีสาน ออโตโมบิล",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี ขอนแก่น 2.8 กม.",
+            "โรงพยาบาลขอนแก่น 2.5 กม.",
+            "ตลาดขอนแก่น 3 กม."
+        ]
+    },
+    {
+        "lat": 15.8169269,
+        "lng": 104.1245971,
+        "type": "Ford",
+        "name": "ฟอร์ด พีพีเอส ยโสธร",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส ยโสธร 2.5 กม.",
+             "โรงพยาบาลยโสธร 2.8 กม.",
+            "ตลาดยโสธร 2.6 กม."
+        ]
+    },
+    {
+         "lat": 6.5765854,
+        "lng": 101.2963281,
+        "type": "Ford",
+        "name": "ฟอร์ด ยะลา",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี ยะลา 2.8 กม.",
+            "โรงพยาบาลยะลา 2.5 กม.",
+           "ตลาดยะลา 2.6 กม."
+        ]
+    },
+    {
+        "lat": 16.0544911,
+        "lng": 103.6399055,
+        "type": "Ford",
+        "name": "ฟอร์ด ชิตทรงสวัสดิ์ ร้อยเอ็ด",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส ร้อยเอ็ด 2.5 กม.",
+            "โรงพยาบาลร้อยเอ็ด 2.8 กม.",
+             "ตลาดร้อยเอ็ด 2.6 กม."
+        ]
+    },
+    {
+        "lat": 16.317202,
+        "lng": 103.9791731,
+        "type": "Ford",
+        "name": "ฟอร์ด เอ.บี.เอ.ร้อยเอ็ด (โพนทอง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส โพนทอง 2.5 กม.",
+             "โรงพยาบาลโพนทอง 2.8 กม.",
+            "ตลาดโพนทอง 2.6 กม."
+        ]
+    },
+    {
+        "lat": 17.1752157,
+        "lng": 102.9741491,
+        "type": "Ford",
+        "name": "ฟอร์ด พีอาร์ มอเตอร์ สกลนคร",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน สกลนคร 2.8 กม.",
+             "โรงพยาบาลสกลนคร 2.5 กม.",
+             "ตลาดสกลนคร 2.6 กม."
+         ]
+    },
+    {
+        "lat": 17.4737701,
+        "lng": 102.3171691,
+        "type": "Ford",
+        "name": "ฟอร์ด พีอาร์ มอเตอร์ สว่างแดนดิน",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโลตัส สว่างแดนดิน 2.5 กม.",
+            "โรงพยาบาลสว่างแดนดิน 2.8 กม.",
+           "ตลาดสว่างแดนดิน 2.6 กม."
+         ]
+    },
+     {
+        "lat": 14.8512306,
+        "lng": 103.5325942,
+        "type": "Ford",
+        "name": "ฟอร์ด เจริญผล สุรินทร์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโลตัส สุรินทร์ 2.5 กม.",
+             "โรงพยาบาลสุรินทร์ 2.8 กม.",
+             "ตลาดสุรินทร์ 2.6 กม."
+         ]
+    },
+    {
+        "lat": 17.8375549,
+        "lng": 102.7518325,
+        "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ (หนองคาย)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี หนองคาย 2.5 กม.",
+            "โรงพยาบาลหนองคาย 2.8 กม.",
+           "ตลาดหนองคาย 2.6 กม."
+        ]
+    },
+    {
+        "lat": 17.2075494,
+        "lng": 102.4464299,
+        "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ (หนองบัวลำภู)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+             "ห้างสรรพสินค้าเทสโก้ โลตัส หนองบัวลำภู 2.5 กม.",
+            "โรงพยาบาลหนองบัวลำภู 2.8 กม.",
+            "ตลาดหนองบัวลำภู 2.6 กม."
+        ]
+    },
+    {
+        "lat": 15.798652,
+        "lng": 104.5612698,
+        "type": "Ford",
+        "name": "ฟอร์ด เลิศออโต้อํานาจเจริญ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส อำนาจเจริญ 2.5 กม.",
+           "โรงพยาบาลอำนาจเจริญ 2.8 กม.",
+            "ตลาดอำนาจเจริญ 2.6 กม."
+        ]
+    },
+     {
+        "lat": 17.3373355,
+        "lng": 102.6895446,
+         "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "โรงพยาบาลพิษณุเวช อุตรดิตถ์ 450 ม.",
+            "โรงพยาบาลอุดรธานี 2.5 กม.",
+            "ตลาดอุดรธานี 2.8 กม."
+        ]
+    },
+    {
+        "lat": 17.540065,
+        "lng": 102.7983214,
+        "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ นาข่า",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส นาข่า 2.5 กม.",
+            "โรงพยาบาลนาข่า 2.8 กม.",
+           "ตลาดนาข่า 2.6 กม."
+        ]
+    },
+    {
+        "lat": 17.1193574,
+        "lng": 102.9859691,
+        "type": "Ford",
+        "name": "ฟอร์ด ฑีฆเจริญ (กุมภวาปี)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส กุมภวาปี 2.5 กม.",
+            "โรงพยาบาลกุมภวาปี 2.8 กม.",
+           "ตลาดกุมภวาปี 2.6 กม."
+        ]
+    },
+    {
+        "lat": 17.6105144,
+        "lng": 100.1211557,
+        "type": "Ford",
+        "name": "ฟอร์ด อุตรดิตถ์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล อุตรดิตถ์ 3 กม.",
+             "โรงพยาบาลอุตรดิตถ์ 2.5 กม.",
+            "ตลาดอุตรดิตถ์ 2.8 กม."
+        ]
+    },
+    {
+        "lat": 15.3292833,
+        "lng": 104.6867335,
+        "type": "Ford",
+        "name": "ฟอร์ด วีอาร์พี อุบลราชธานี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าโรบินสัน อุบลราชธานี 2.8 กม.",
+           "โรงพยาบาลอุบลราชธานี 2.5 กม.",
+           "ตลาดอุบลราชธานี 2.6 กม."
+        ]
+    },
+    {
+        "lat": 15.1937374,
+        "lng": 104.2388717,
+        "type": "Ford",
+        "name": "ฟอร์ด พิจิตรเพชร ออโตโมบิล",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าเทสโก้ โลตัส พิจิตร 2.5 กม.",
+            "โรงพยาบาลพิจิตร 2.8 กม.",
+            "ตลาดพิจิตร 2.6 กม."
+        ]
+    },
+    {
+        "lat": 15.1622726,
+        "lng": 104.8805877,
+        "type": "Ford",
+        "name": "ฟอร์ด วีอาร์พี วารินชำราบ",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโลตัส วารินชำราบ 2.5 กม.",
+            "โรงพยาบาลวารินชำราบ 2.8 กม.",
+            "ตลาดวารินชำราบ 2.6 กม."
+        ]
+    },
+    {
+        "lat": 15.7934687,
+        "lng": 102.0276701,
+        "type": "Ford",
+        "name": "ฟอร์ด ชัยภูมิ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "โรบินสัน ไลฟ์สไตล์ ชัยภูมิ 2.8 กม.",
+            "โรงพยาบาลชัยภูมิ 2.5 กม.",
+            "ตลาดชัยภูมิ 2.8 กม."
+        ]
+    },
+    {
+        "lat": 14.955754,
+        "lng": 100.8817518,
+        "type": "Ford",
+        "name": "ฟอร์ด เอกสห กรุ๊ป โคราช",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+       "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส โคราช 2.5 กม.",
+            "โรงพยาบาลโคราช 2.8 กม.",
+            "ตลาดโคราช 2.6 กม."
+        ]
+    },
+     {
+        "lat": 14.955754,
+        "lng": 102.0327414,
+         "type": "Ford",
+        "name": "ฟอร์ด เอกสหกรุ๊ป ราชสีมา",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "โรงเรียนราชสีมาวิทยาลัย 800 ม.",
+           "โรงพยาบาลราชสีมา 2.5 กม.",
+            "ตลาดราชสีมา 2.8 กม."
+       ]
+    },
+    {
+        "lat": 14.6854933,
+        "lng": 101.4005705,
+        "type": "Ford",
+        "name": "ฟอร์ด เอกสห กรุ๊ป โคราช (ปากช่อง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าโลตัส ปากช่อง 2.5 กม.",
+            "โรงพยาบาลปากช่อง 2.8 กม.",
+            "ตลาดปากช่อง 2.6 กม."
+        ]
+    },
+    {
+        "lat": 17.4589638,
+        "lng": 101.7266944,
+        "type": "Ford",
+        "name": "สหชัย ฟอร์ด เลย",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "โรงพยาบาลเมืองเลยราม 1 กม.",
+            "โรงพยาบาลเลย 2.5 กม.",
+            "ตลาดเลย 2.8 กม."
+        ]
+    },
+    {
+        "lat": 17.493464,
+        "lng": 101.7163,
+        "type": "Ford",
+        "name": "ฟอร์ด รัตนยนต์ เลย",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส เลย 2.5 กม.",
+            "โรงพยาบาลเลย 2.8 กม.",
+            "ตลาดเลย 2.6 กม."
+       ]
+    },
+    {
+        "lat": 15.1025212,
+        "lng": 104.3288285,
+        "type": "Ford",
+        "name": "ฟอร์ด ทีที ศรีสะเกษ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าโลตัส ศรีสะเกษ 2.5 กม.",
+           "โรงพยาบาลศรีสะเกษ 2.8 กม.",
+            "ตลาดศรีสะเกษ 2.6 กม."
+        ]
+    },
+    {
+        "lat": 14.645025,
+        "lng": 104.6395697,
+        "type": "Ford",
+        "name": "ฟอร์ด ทีที ศรีสะเกษ (สาขากันทรลักษ์)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ศาลหลักเมืองกันทรลักษ์ 1.4 กม.",
+           "โรงพยาบาลกันทรลักษ์ 2.5 กม.",
+           "ตลาดกันทรลักษ์ 2.8 กม."
+        ]
+    },
+     {
+         "lat": 13.9969545,
+         "lng": 99.5533969,
+         "type": "Ford",
+          "name": "ฟอร์ด กาญจนบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+          "nearby":[
+            "โรงพยาบาลกาญจนบุรี 1.5 กม.",
+            "โรบินสัน ไลฟ์สไตล์ กาญจนบุรี 6.1 กม.",
+            "สถานีรถไฟกาญจนบุรี 2.2 กม."
+       ]
+     },
+    {
+        "lat": 12.230933,
+        "lng": 102.5037233,
+        "type": "Ford",
+        "name": "ฟอร์ด ตราด",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "หาดทรายทอง 4 กม.",
+            "ห้างสรรพสินค้าโรบินสัน ตราด 3 กม.",
+            "โรงพยาบาลตราด 2.8 กม."
+        ]
+    },
+    {
+        "lat": 12.8155745,
+        "lng": 99.9384077,
+        "type": "Ford",
+        "name": "ฟอร์ด เพชรบุรี (ชะอำ)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "สวนอูฐ ชะอำ 3.6 กม.",
+           "ห้างสรรพสินค้าเซ็นทรัล ชะอำ 4.2 กม.",
+            "โรงพยาบาลชะอำ 2.7 กม."
+        ]
+    },
+   {
+        "lat": 13.0942678,
+        "lng": 99.9363746,
+        "type": "Ford",
+        "name": "ฟอร์ด ป.รุ่งโรจน์เพชรบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน เพชรบุรี 4 กม.",
+            "โรงพยาบาลเพชรบุรี 2.8 กม.",
+            "ตลาดเพชรบุรี 3.1 กม."
+        ]
+    },
+    {
+        "lat": 12.6020064,
+        "lng": 102.1325547,
+        "type": "Ford",
+        "name": "ฟอร์ด เอก จันทบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล จันทบุรี 3.8 กม.",
+            "ตลาดสดจันทบุรี 2.5 กม.",
+            "โรงพยาบาลจันทบุรี 2.3 กม."
+        ]
+    },
+     {
+        "lat": 12.9005768,
+        "lng": 102.2637523,
+        "type": "Ford",
+         "name": "ฟอร์ด เอกจันทบุรี (โป่งน้ำร้อน)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน จันทบุรี 7.3 กม.",
+            "โรงพยาบาลจันทบุรี 6.9 กม.",
+             "สถานีตำรวจภูธรจันทบุรี 7.5 กม."
+        ]
+    },
+     {
+        "lat": 13.6630121,
+        "lng": 101.0451665,
+        "type": "Ford",
+        "name": "ฟอร์ด ชุนหลี ฉะเชิงเทรา",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+       "nearby": [
+            "โรบินสัน ไลฟ์สไตล์ ฉะเชิงเทรา 600 ม.",
+            "โรงพยาบาลฉะเชิงเทรา 4.8 กม.",
+            "สถานีตำรวจภูธรเมืองฉะเชิงเทรา 4.3 กม."
+        ]
+    },
+    {
+        "lat": 13.3092632,
+        "lng": 100.9519739,
+        "type": "Ford",
+        "name": "ฟอร์ด ชลบุรี ท็อป คาร์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล ชลบุรี 5.7 กม.",
+            "โรงพยาบาลชลบุรี 6.2 กม.",
+             "สวนสาธารณะชลบุรี 3.4 กม."
+       ]
+    },
+    {
+        "lat": 13.3037112,
+        "lng": 101.1154737,
+        "type": "Ford",
+        "name": "ฟอร์ด ชลบุรี ท็อป คาร์ (บ้านบึง)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าเทสโก้ โลตัส บ้านบึง 2.1 กม.",
+            "โรงพยาบาลบ้านบึง 1.8 กม.",
+            "ตลาดบ้านบึง 2.5 กม."
+        ]
+    },
+    {
+        "lat": 12.8934205,
+        "lng": 100.8952657,
+        "type": "Ford",
+        "name": "ฟอร์ด ชลบุรี ท็อป คาร์ (พัทยา)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล พัทยา 5.3 กม.",
+           "โรงพยาบาลพัทยา 4.8 กม.",
+            "หาดพัทยา 6.1 กม."
+        ]
+    },
+    {
+        "lat": 13.0582166,
+        "lng": 100.9217532,
+        "type": "Ford",
+        "name": "ฟอร์ด ท็อปคาร์ ฮาร์เบอร์",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าฮาร์เบอร์ พัทยา 1.5 กม.",
+            "โรงพยาบาลพัทยา 3.4 กม.",
+            "ตลาดน้ำสี่ภาค พัทยา 7.2 กม."
+        ]
+    },
+    {
+        "lat": 13.4033196,
+        "lng": 101.0012237,
+         "type": "Ford",
+        "name": "ฟอร์ด ตะวันออก มอเตอร์คาร์ ชลบุรี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล ชลบุรี 4.5 กม.",
+            "โรงพยาบาลชลบุรี 4.1 กม.",
+            "ตลาดหนองมน 5.8 กม."
+        ]
+    },
+    {
+       "lat": 13.043509,
+       "lng": 101.0822166,
+        "type": "Ford",
+        "name": "ฟอร์ด ชลบุรี บ่อวิน",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+       "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน บ่อวิน 3.7 กม.",
+             "โรงพยาบาลปิยะเวชช์ บ่อวิน 2.9 กม.",
+             "ตลาดบ่อวิน 3.1 กม."
+         ]
+    },
+   {
+        "lat": 12.944569,
+        "lng": 100.9013597,
+        "type": "Ford",
+        "name": "ฟอร์ด พัทยา เหนือ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าเทอมินัล 21 พัทยา 3.9 กม.",
+            "โรงพยาบาลพัทยา 4.1 กม.",
+            "หาดพัทยา 2.5 กม."
+        ]
+    },
+     {
+         "lat": 14.093644,
+         "lng": 101.3370175,
+         "type": "Ford",
+         "name": "ฟอร์ด ชุนหลี ปราจีนบุรี",
+          "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+          "nearby": [
+           "ห้างสรรพสินค้าโรบินสัน ปราจีนบุรี 3.5 กม.",
+           "โรงพยาบาลเจ้าพระยาอภัยภูเบศร 2.8 กม.",
+            "ตลาดเทศบาลเมืองปราจีนบุรี 4.2 กม."
+         ]
+     },
+     {
+         "lat": 12.9810548,
+        "lng": 101.2055075,
+         "type": "Ford",
+        "name": "ฟอร์ด เอก ระยอง (ปลวกแดง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้า CK Plaza ปลวกแดง 2.4 กม.",
+             "โรงพยาบาลปลวกแดง 3.1 กม.",
+            "ตลาดปลวกแดง 1.9 กม."
+         ]
+    },
+    {
+        "lat": 12.6697938,
+        "lng": 101.3039606,
+        "type": "Ford",
+        "name": "ฟอร์ด เอกระยอง (เชิงเนิน)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล ระยอง 3.7 กม.",
+            "โรงพยาบาลระยอง 4.2 กม.",
+           "ตลาดสดเทศบาลเมืองระยอง 4.9 กม."
+        ]
+    },
+  {
+        "lat": 12.7828091,
+        "lng": 101.6146655,
+         "type": "Ford",
+        "name": "ฟอร์ด เอก ระยอง (แกลง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าเทสโก้ โลตัส แกลง 2.8 กม.",
+            "โรงพยาบาลแกลง 2.5 กม.",
+             "ตลาดแกลง 2.3 กม."
+        ]
+    },
+     {
+        "lat": 8.1075939,
+        "lng": 98.9234228,
+        "type": "Ford",
+        "name": "ฟอร์ด กระบี่ดุสิตออโตโมบิล",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าบิ๊กซี กระบี่ 4.1 กม.",
+            "โรงพยาบาลกระบี่ 3.6 กม.",
+             "ตลาดสดมหาราช 3.2 กม."
+        ]
+    },
+    {
+        "lat": 7.5696046,
+        "lng": 99.6095363,
+        "type": "Ford",
+        "name": "ฟอร์ด ดุสิต ตรัง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน ตรัง 4.8 กม.",
+            "โรงพยาบาลตรัง 3.5 กม.",
+            "ตลาดสดเทศบาลนครตรัง 4.2 กม."
+        ]
+    },
+    {
+        "lat": 9.9845733,
+        "lng": 99.0657516,
+        "type": "Ford",
+        "name": "ฟอร์ด มิตรแท้ หลังสวน",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเทสโก้ โลตัส หลังสวน 2.9 กม.",
+           "โรงพยาบาลหลังสวน 2.1 กม.",
+            "ตลาดสดหลังสวน 1.8 กม."
+        ]
+    },
+  {
+        "lat": 10.4919116,
+        "lng": 99.118669,
+        "type": "Ford",
+        "name": "ฟอร์ด มิตรแท้ชุมพร",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโอเชี่ยน ชุมพร 3.3 กม.",
+            "โรงพยาบาลชุมพรเขตรอุดมศักดิ์ 2.7 กม.",
+           "ตลาดสดเทศบาลเมืองชุมพร 3.1 กม."
+        ]
+    },
+    {
+        "lat": 10.6623977,
+        "lng": 99.1974144,
+        "type": "Ford",
+        "name": "ฟอร์ด มิตรแท้ท่าแซะ",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าเทสโก้ โลตัส ท่าแซะ 2.3 กม.",
+           "โรงพยาบาลท่าแซะ 1.5 กม.",
+            "ตลาดท่าแซะ 2.8 กม."
+         ]
+    },
+    {
+        "lat": 8.4327128,
+        "lng": 99.9490017,
+        "type": "Ford",
+        "name": "ฟอร์ด วี กรุ๊ป คาร์ นครศรีธรรมราช",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล นครศรีธรรมราช 5.7 กม.",
+           "โรงพยาบาลมหาราชนครศรีธรรมราช 4.8 กม.",
+             "ตลาดหัวอิฐ 5.4 กม."
+         ]
+    },
+    {
+        "lat": 8.468716,
+        "lng": 99.9620418,
+        "type": "Ford",
+        "name": "ฟอร์ด ดุสิต นครศรีธรรมราช",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน นครศรีธรรมราช 5.1 กม.",
+            "โรงพยาบาลมหาราชนครศรีธรรมราช 4.3 กม.",
+            "ตลาดสดท่าม้า 4.9 กม."
+         ]
+    },
+    {
+        "lat": 6.417938,
+        "lng": 101.8107419,
+        "type": "Ford",
+        "name": "ฟอร์ด นราธิวาส",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าบิ๊กซี นราธิวาส 4.2 กม.",
+             "โรงพยาบาลนราธิวาสราชนครินทร์ 3.5 กม.",
+            "ตลาดเทศบาลเมืองนราธิวาส 3.8 กม."
+        ]
+    },
+    {
+         "lat": 12.5974943,
+         "lng": 99.9466928,
+        "type": "Ford",
+        "name": "ฟอร์ด จ.เจริญ ประจวบคีรีขันธ์ (หัวหิน)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby":[
+            "ห้างสรรพค้ามาร์เก็ตวิลเลจ หัวหิน 4.5 กม.",
+            "โรงพยาบาลหัวหิน 4.1 กม.",
+            "ตลาดโต้รุ่งหัวหิน 3.9 กม."
+         ]
+     },
+      {
+         "lat": 12.323535,
+         "lng": 99.87895,
+         "type": "Ford",
+         "name": "จ.เจริญ ออโต้เซลส์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby":[
+           "วัดใหม่ลาดวิถี 750 ม.",
+           "บุญสมฟาร์ม 1 กม.",
+            "สำนักงานเขตพื้นที่การศึกษาประจวบคีรีขันธ์ เขต 2 5 กม."
+         ]
+     },
+    {
+         "lat": 6.8539351,
+         "lng": 101.2198179,
+         "type": "Ford",
+        "name": "ฟอร์ด ปัตตานี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby":[
+             "ห้างสรรพสินค้าบิ๊กซี ปัตตานี 3.7 กม.",
+             "โรงพยาบาลปัตตานี 3.1 กม.",
+             "ตลาดสดเทศบาลเมืองปัตตานี 2.8 กม."
+         ]
+    },
+   {
+        "lat": 7.5854204,
+        "lng": 100.0501994,
+        "type": "Ford",
+        "name": "ฟอร์ด พัทลุง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน พัทลุง 4.6 กม.",
+            "โรงพยาบาลพัทลุง 2.9 กม.",
+            "สวนพัทลุง 3.5 กม."
+       ]
+   },
+  {
+         "lat": 7.887782,
+         "lng": 98.3880096,
+         "type": "Ford",
+         "name": "อนุภาษ ฟอร์ด ภูเก็ต",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby":[
+           "ห้างสรรพสินค้าเซ็นทรัล ภูเก็ต 5.5 กม.",
+           "โรงพยาบาลวชิระภูเก็ต 4.9 กม.",
+           "ตลาดดาวน์ทาวน์ ภูเก็ต 4.2 กม."
+         ]
+   },
+   {
+        "lat": 7.9942305,
+        "lng": 98.3502756,
+        "type": "Ford",
+        "name": "ฟอร์ด วี กรุ๊ป คาร์ ภูเก็ต",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน ภูเก็ต 6.2 กม.",
+             "โรงพยาบาลมิชชั่น ภูเก็ต 4.7 กม.",
+             "ตลาดสดบ้านซ่าน 5.1 กม."
+         ]
+    },
+      {
+        "lat": 9.983917,
+        "lng": 98.643209,
+        "type": "Ford",
+        "name": "ฟอร์ด มิตรแท้ ระนอง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+       "nearby": [
+             "ห้างสรรพสินค้าบิ๊กซี ระนอง 3.8 กม.",
+            "โรงพยาบาลระนอง 3.2 กม.",
+            "ตลาดสดเทศบาลเมืองระนอง 2.9 กม."
+        ]
+     },
+    {
+        "lat": 7.1835856,
+        "lng": 100.599598,
+        "type": "Ford",
+        "name": "ฟอร์ด พี.วี.เค. สงขลา",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ศูนย์อุตุนิยมวิทยาภาคใต้ฝั่งตะวันออก จังหวัดสงขลา 500 ม.",
+            "โรงพยาบาลสงขลา 6 กม.",
+           "สนามบินสงขลา 7.2 กม."
+        ]
+    },
+    {
+        "lat": 7.0188927,
+        "lng": 100.4861045,
+        "type": "Ford",
+        "name": "ฟอร์ด พี.วี.เค. หาดใหญ่ (เพชรเกษม)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าเซ็นทรัล หาดใหญ่ 5 กม.",
+           "โรงพยาบาลหาดใหญ่ 4.8 กม.",
+           "สถานีตำรวจภูธรหาดใหญ่ 4.5 กม."
+        ]
+    },
+    {
+        "lat": 6.6268651,
+        "lng": 100.0656862,
+         "type": "Ford",
+        "name": "ฟอร์ด พี.วี.เค. สตูล",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน สตูล 5.6 กม.",
+            "โรงพยาบาลสตูล 3.8 กม.",
+            "สถานีตำรวจภูธรสตูล 4 กม."
+         ]
+    },
+    {
+         "lat": 9.1527531,
+         "lng": 99.3569676,
+         "type": "Ford",
+        "name": "ฟอร์ด มิตรแท้สุราษฎร์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby":[
+            "ห้างสรรพสินค้าโรบินสัน สุราษฎร์ธานี 6.2 กม.",
+            "โรงพยาบาลสุราษฎร์ธานี 4.3 กม.",
+           "ศาลหลักเมืองสุราษฎร์ธานี 7 กม."
+        ]
+    },
+    {
+        "lat": 9.1275493,
+        "lng": 99.2670507,
+         "type": "Ford",
+        "name": "ฟอร์ด เอ็มเอสเค สุราษฎร์ธานี",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+           "ห้างสรรพสินค้าเซ็นทรัล สุราษฎร์ธานี 6.3 กม.",
+           "โรงพยาบาลสุราษฎร์ธานี 5 กม.",
+            "ตลาดสดสุราษฎร์ธานี 3.7 กม."
+        ]
+    },
+    {
+        "lat": 9.4686012,
+        "lng": 99.9624725,
+        "type": "Ford",
+        "name": "ฟอร์ด เอ็มเอสเค ออโตโมบิล - สมุย",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล สมุย 5.1 กม.",
+            "โรงพยาบาลสมุย 6 กม.",
+            "หาดเฉวง 7.3 กม."
+        ]
+    },
+    {
+        "lat": 16.7224135,
+        "lng": 98.5742607,
+         "type": "Ford",
+        "name": "ฟอร์ด แม่สอด",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน แม่สอด 4.2 กม.",
+            "โรงพยาบาลแม่สอด 3.5 กม.",
+            "สถานีตำรวจภูธรแม่สอด 4 กม."
+        ]
+    },
+    {
+        "lat": 16.8865243,
+        "lng": 99.1253463,
+         "type": "Ford",
+        "name": "ฟอร์ด ตาก",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน ตาก 5.3 กม.",
+            "โรงพยาบาลตาก 4.6 กม.",
+            "สถานีตำรวจภูธรตาก 5 กม."
+        ]
+    },
+    {
+        "lat": 16.4591035,
+        "lng": 99.4779953,
+        "type": "Ford",
+        "name": "ฟอร์ด โชคชัย กำแพงเพชร",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน กำแพงเพชร 4.9 กม.",
+            "โรงพยาบาลกำแพงเพชร 3.9 กม.",
+            "สถานีตำรวจภูธรกำแพงเพชร 4.2 กม."
+        ]
+    },
+    {
+        "lat": 18.7287923,
+        "lng": 98.9464488,
+        "type": "Ford",
+        "name": "ฟอร์ด วี กรุ๊ป คาร์ เชียงใหม่ (หางดง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล เชียงใหม่ 10.1 กม.",
+            "โรงพยาบาลเชียงใหม่ 11.2 กม.",
+             "สวนสัตว์เชียงใหม่ 7 กม."
+        ]
+    },
+    {
+        "lat": 18.8141003,
+        "lng": 99.0088604,
+         "type": "Ford",
+        "name": "ฟอร์ด อเมริกัน มอเตอร์ส (รวมโชค)",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล เชียงใหม่ 6.7 กม.",
+            "โรงพยาบาลเชียงใหม่ 6 กม.",
+            "สวนสัตว์เชียงใหม่ 5.5 กม."
+        ]
+    },
+    {
+        "lat": 19.8753694,
+        "lng": 99.186421,
+        "type": "Ford",
+        "name": "ฟอร์ด อเมริกัน มอเตอร์ส (ฝาง)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน ฝาง 3.4 กม.",
+            "โรงพยาบาลฝาง 3.1 กม.",
+            "สถานีตำรวจภูธรฝาง 3.6 กม."
+        ]
+    },
+    {
+        "lat": 18.7844918,
+        "lng": 98.9858782,
+         "type": "Ford",
+        "name": "ฟอร์ด เจริญยนตรการ เชียงใหม่",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าเซ็นทรัล เชียงใหม่ 5.5 กม.",
+            "โรงพยาบาลเชียงใหม่ 4.8 กม.",
+            "สวนสัตว์เชียงใหม่ 3.7 กม."
+        ]
+    },
+    {
+        "lat": 18.4318375,
+        "lng": 98.6815085,
+         "type": "Ford",
+        "name": "ฟอร์ด เจริญยนตรการ จอมทอง เชียงใหม่",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าเซ็นทรัล เชียงใหม่ 9.3 กม.",
+             "โรงพยาบาลเชียงใหม่ 10 กม.",
+             "สวนสัตว์เชียงใหม่ 7.5 กม."
+        ]
+    },
+    {
+        "lat": 19.8821313,
+        "lng": 99.7626213,
+         "type": "Ford",
+        "name": "ฟอร์ด อเมริกัน มอเตอร์ส (เชียงราย)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน เชียงราย 5.2 กม.",
+             "โรงพยาบาลเชียงราย 4.3 กม.",
+             "สถานีตำรวจภูธรเชียงราย 5.6 กม."
+        ]
+    },
+    {
+        "lat": 19.9489688,
+        "lng": 99.8465286,
+         "type": "Ford",
+        "name": "ฟอร์ด อเมริกัน มอเตอร์ส สาขาบ้านดู่",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน บ้านดู่ 3.8 กม.",
+             "โรงพยาบาลเชียงราย 4.1 กม.",
+             "สถานีตำรวจภูธรบ้านดู่ 4.5 กม."
+        ]
+    },
+    {
+        "lat": 18.7619141,
+        "lng": 100.7594308,
+        "type": "Ford",
+        "name": "ฟอร์ด ตั้งจิตนุสรณ์ น่าน",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน น่าน 4.5 กม.",
+             "โรงพยาบาลน่าน 3.8 กม.",
+             "สถานีตำรวจภูธรน่าน 4 กม."
+        ]
+    },
+    {
+        "lat": 19.2128242,
+        "lng": 99.8653307,
+        "type": "Ford",
+        "name": "ฟอร์ด เอ็นทีออโตโมบิล พะเยา",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน พะเยา 4.2 กม.",
+             "โรงพยาบาลพะเยา 3.9 กม.",
+             "สถานีตำรวจภูธรพะเยา 4.3 กม."
+        ]
+    },
+    {
+        "lat": 16.4503405,
+        "lng": 100.3071109,
+        "type": "Ford",
+        "name": "ฟอร์ด เอนกยนต์ พิจิตร",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+           "ห้างสรรพสินค้าโรบินสัน พิจิตร 3.8 กม.",
+            "โรงพยาบาลพิจิตร 3 กม.",
+            "สถานีตำรวจภูธรพิจิตร 3.4 กม."
+        ]
+    },
+    {
+        "lat": 16.8213733,
+        "lng": 100.3462501,
+        "type": "Ford",
+        "name": "ฟอร์ด สองแคว (พิษณุโลก)",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+       "nearby": [
+           "ห้างสรรพสินค้าโรบินสัน พิษณุโลก 4.5 กม.",
+             "โรงพยาบาลพิษณุโลก 4 กม.",
+             "สถานีตำรวจภูธรพิษณุโลก 4.8 กม."
+        ]
+    },
+    {
+        "lat": 16.3905353,
+        "lng": 101.1278014,
+        "type": "Ford",
+        "name": "ฟอร์ด นรินทร์ ยนตร์กิจ เพชรบูรณ์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน เพชรบูรณ์ 4.2 กม.",
+            "โรงพยาบาลเพชรบูรณ์ 3.6 กม.",
+            "สถานีตำรวจภูธรเพชรบูรณ์ 3.9 กม."
+        ]
+    },
+     {
+        "lat": 18.0963089,
+        "lng": 100.1280088,
+        "type": "Ford",
+        "name": "ฟอร์ด นครแพร่",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน แพร่ 5.2 กม.",
+            "โรงพยาบาลแพร่ 4.7 กม.",
+             "สถานีตำรวจภูธรแพร่ 5 กม."
+         ]
+    },
+    {
+        "lat": 18.2675585,
+        "lng": 99.4701908,
+         "type": "Ford",
+        "name": "ฟอร์ด เจริญยนตรการ ลำปาง",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน ลำปาง 4.4 กม.",
+             "โรงพยาบาลลำปาง 4.1 กม.",
+              "สถานีตำรวจภูธรลำปาง 4.6 กม."
+        ]
+    },
+     {
+        "lat": 18.6318618,
+        "lng": 99.0484239,
+        "type": "Ford",
+        "name": "ฟอร์ด เจริญมอเตอร์ ลำพูน",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน ลำพูน 4.8 กม.",
+            "โรงพยาบาลลำพูน 4.3 กม.",
+             "สถานีตำรวจภูธรลำพูน 5 กม."
+        ]
+    },
+     {
+        "lat": 15.1025212,
+        "lng": 104.3288285,
+        "type": "Ford",
+        "name": "ฟอร์ด ทีที ศรีสะเกษ",
+        "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+         "nearby": [
+            "ห้างสรรพสินค้าโรบินสัน ศรีสะเกษ 4.7 กม.",
+            "โรงพยาบาลศรีสะเกษ 4.1 กม.",
+            "สถานีตำรวจภูธรศรีสะเกษ 4.9 กม."
+          ]
+    },
+     {
+        "lat": 14.8512306,
+         "lng": 103.5325942,
+        "type": "Ford",
+        "name": "ฟอร์ด เจริญผล สุรินทร์",
+         "image": "https://logowik.com/content/uploads/images/ford-new1984.logowik.com.webp",
+        "nearby": [
+             "ห้างสรรพสินค้าโรบินสัน สุรินทร์ 4.6 กม.",
+             "โรงพยาบาลสุรินทร์ 4.3 กม.",
+            "สถานีตำรวจภูธรสุรินทร์ 4.2 กม."
+         ]
+     },
+      {
+        "lat": 13.7320476,
+        "lng": 100.5866019,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Ekkamai)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "สถานีรถไฟฟ้า BTS เอกมัย 0.5 กม.",
+          "ห้างสรรพสินค้า Gateway เอกมัย 1 กม.",
+          "โรงพยาบาลสุขุมวิท 2.5 กม."
+        ]
+      },
+      {
+        "lat": 13.7198652,
+        "lng": 100.5625931,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Rama 4)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "สถานีรถไฟฟ้า MRT คลองเตย 1 กม.",
+          "สวนเบญจกิติ 2 กม.",
+          "ห้างสรรพสินค้า Terminal 21 พระราม 3 4 กม."
+        ]
+      },
+      {
+        "lat": 13.7461608,
+        "lng": 100.5348809,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Paragon)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "สถานีรถไฟฟ้า BTS สยาม 0.2 กม.",
+          "สยามสแควร์ 0.5 กม.",
+          "มาบุญครอง (MBK Center) 1 กม."
+        ]
+      },
+      {
+        "lat": 13.7264795,
+        "lng": 100.507529,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Icon Siam)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "สถานีรถไฟฟ้า BTS สะพานตากสิน 1.5 กม.",
+          "วัดอรุณราชวรารามราชวรมหาวิหาร (วัดอรุณ) 2 กม.",
+          "ท่าเรือสาทร 2.5 กม."
+        ]
+      },
+      {
+        "lat": 13.6692301,
+        "lng": 100.6288801,
+        "type": "Mini",
+        "name": "German Auto (Bangna)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "ห้างสรรพสินค้าเมกาบางนา 4 กม.",
+          "โรงพยาบาลไทยนครินทร์ 4.5 กม.",
+          "เซ็นทรัล บางนา 6 กม."
+        ]
+      },
+      {
+        "lat": 13.9066221,
+        "lng": 100.5166284,
+        "type": "Mini",
+        "name": "German Auto (Chaengwattana)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "ศูนย์ราชการแจ้งวัฒนะ 1 กม.",
+          "ห้างสรรพสินค้าเซ็นทรัล แจ้งวัฒนะ 2.5 กม.",
+          "อิมแพ็ค เมืองทองธานี 4 กม."
+        ]
+      },
+      {
+        "lat": 16.4404849,
+        "lng": 102.8154871,
+        "type": "Mini",
+        "name": "Sky Autohaus (Khonkaen)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "มหาวิทยาลัยขอนแก่น 4 กม.",
+          "เซ็นทรัล ขอนแก่น 5 กม.",
+          "โรงพยาบาลศรีนครินทร์ 6 กม."
+        ]
+      },
+      {
+        "lat": 15.2114243,
+        "lng": 104.811367,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Ubon)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "เซ็นทรัล อุบลราชธานี 2 กม.",
+          "มหาวิทยาลัยอุบลราชธานี 6 กม.",
+          "สนามบินนานาชาติอุบลราชธานี 7 กม."
+        ]
+      },
+      {
+        "lat": 12.7958971,
+        "lng": 100.914542,
+        "type": "Mini",
+        "name": "German Auto (Pattaya)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "หาดพัทยา 3 กม.",
+          "เซ็นทรัล พัทยา 4 กม.",
+          "โรงพยาบาลพัทยาอินเตอร์ 5 กม."
+        ]
+      },
+      {
+        "lat": 7.0083535,
+        "lng": 100.487905,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Hatyai)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "เซ็นทรัล หาดใหญ่ 3 กม.",
+          "โรงพยาบาลสงขลานครินทร์ 5 กม.",
+          "ตลาดกิมหยง 6 กม."
+        ]
+      },
+      {
+        "lat": 7.9204076,
+        "lng": 98.3672742,
+        "type": "Mini",
+        "name": "Millennium Auto Group (Phuket)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "เซ็นทรัล ภูเก็ต 2 กม.",
+          "โรงพยาบาลกรุงเทพภูเก็ต 4 กม.",
+          "หาดป่าตอง 7 กม."
+        ]
+      },
+      {
+        "lat": 18.8054837,
+        "lng": 99.0142981,
+        "type": "Mini",
+        "name": "Barcelona Motor (Chiangmai)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "มหาวิทยาลัยเชียงใหม่ 2 กม.",
+          "ห้างสรรพสินค้าเมญ่า เชียงใหม่ 3 กม.",
+          "โรงพยาบาลมหาราชนครเชียงใหม่ 4 กม."
+        ]
+      },
+      {
+        "lat": 16.7427273,
+        "lng": 100.1781026,
+        "type": "Mini",
+        "name": "Nithiboon (Phitsanulok)",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwFNUEfven4A2fRMAxzczxhkG7wofle1C9Fw&s",
+        "nearby": [
+          "มหาวิทยาลัยนเรศวร 4 กม.",
+          "เซ็นทรัล พิษณุโลก 5 กม.",
+          "วัดพระศรีรัตนมหาธาตุวรมหาวิหาร (วัดใหญ่) 7 กม."
+        ]
+      },
+    {
+        "lat": 18.2522088,
+        "lng": 99.4472521,
+        "type": "Suzuki",
+        "name": "บริษัท เขลางค์ออโตเซลส์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "บิ๊กซี ลำปาง 2 กม.",
+            "เซ็นทรัล ลำปาง 3 กม.",
+            "โรงพยาบาลลำปาง 4 กม."
+        ]
+    },
+    {
+        "lat": 15.7093344,
+        "lng": 100.0976681,
+        "type": "Suzuki",
+        "name": "บริษัท เค-วิน มอเตอร์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาล 3 (ตลาดหนองจอก) 1 กม.",
+            "โรงเรียนสุเหร่าคลอง 12 2 กม.",
+            "สำนักงานเขตหนองจอก 4 กม."
+        ]
+    },
+    {
+        "lat": 17.4547836,
+        "lng": 101.7271764,
+        "type": "Suzuki",
+        "name": "บริษัท เจ.พี.ซู จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดศรีนคร 1 กม.",
+            "โรงเรียนสตรีศรีสุริโยทัย 3 กม.",
+            "วัดยานนาวา 4 กม."
+        ]
+    },
+    {
+        "lat": 13.7853578,
+        "lng": 100.4077848,
+        "type": "Suzuki",
+        "name": "บริษัท เจเอ็ม มอเตอร์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "โรงเรียนอนุบาลบ้านเด็ก 1 กม.",
+            "วัดป่าธรรมวิเวก 2 กม.",
+            "สถานีตำรวจภูธรปากช่อง 3 กม."
+        ]
+    },
+    {
+        "lat": 15.8669656,
+        "lng": 104.6289591,
+         "type": "Suzuki",
+        "name": "บริษัท เลิศวิจิตร ออโต้เซลส์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองฉะเชิงเทรา 1 กม.",
+            "โรบินสัน ฉะเชิงเทรา 2 กม.",
+            "วัดหลวงพ่อโสธร 3 กม."
+        ]
+    },
+    {
+        "lat": 14.3345963,
+        "lng": 100.4360477,
+         "type": "Suzuki",
+        "name": "บริษัท เอ พี เอ็ม ออโตโมบิล จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "เทสโก้ โลตัส พัทยาใต้ 2 กม.",
+            "บิ๊กซี พัทยาใต้ 3 กม.",
+            "ถนนคนเดินพัทยา 4 กม."
+        ]
+    },
+    {
+        "lat": 6.2402483,
+        "lng": 101.7513961,
+         "type": "Suzuki",
+        "name": "บริษัท เอ.เอ็น.เอ็น.ออโต้เซลส์ (2016) จำกัด (สาขานราธิวาส)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลนราธิวาส 1 กม.",
+            "โรงพยาบาลนราธิวาสราชนครินทร์ 2 กม.",
+            "มัสยิดกลางนราธิวาส 3 กม."
+        ]
+    },
+    {
+        "lat": 6.9871726,
+        "lng": 100.4341201,
+         "type": "Suzuki",
+        "name": "บริษัท เอ.ซี.ออโตโมบิล (2002) จำกัด (สำนักงานใหญ่)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เดอะมอลล์ บางแค 2 กม.",
+            "ซีคอน บางแค 3 กม.",
+            "โรงพยาบาลเกษมราษฎร์ บางแค 4 กม."
+        ]
+    },
+    {
+        "lat": 13.7561747,
+        "lng": 100.5184107,
+         "type": "Suzuki",
+        "name": "บริษัท เอ.พี.วาย. กรุ๊ป จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "เซ็นทรัล พระราม 2 2 กม.",
+           "บิ๊กซี พระราม 2 3 กม.",
+           "โรงพยาบาลนครธน 4 กม."
+        ]
+    },
+    {
+        "lat": 13.7898225,
+        "lng": 100.595224,
+         "type": "Suzuki",
+        "name": "บริษัท เอชเอ็มเอส 62 จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "ตลาดสดสี่มุมเมือง 2 กม.",
+            "ฟิวเจอร์พาร์ค รังสิต 3 กม.",
+            "เซียร์ รังสิต 4 กม."
+        ]
+    },
+    {
+        "lat": 13.8241918,
+        "lng": 100.4583978,
+         "type": "Suzuki",
+        "name": "บริษัท เอ็น ซี เอ็ม ออโต้ เซอร์วิส จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "บิ๊กซี เอ็กซ์ตร้า เชียงราย 1 กม.",
+            "เซ็นทรัล เชียงราย 2 กม.",
+            "โรงพยาบาลเชียงรายประชานุเคราะห์ 3 กม."
+        ]
+    },
+    {
+        "lat": 19.9030654,
+        "lng": 99.6942184,
+         "type": "Suzuki",
+        "name": "บริษัท เอ็นทีออโตโมบิล จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "ตลาดสดเทศบาลเมืองนครสวรรค์ 1 กม.",
+           "บิ๊กซี นครสวรรค์ 2 กม.",
+           "โรงพยาบาลสวรรค์ประชารักษ์ 3 กม."
+        ]
+    },
+      {
+        "lat": 8.0512097,
+        "lng": 98.8674876,
+         "type": "Suzuki",
+        "name": "บริษัท เอ็มเจเซลส์แอนด์มาร์เก็ตติ้ง จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เซ็นทรัล ระยอง 1 กม.",
+            "บิ๊กซี ระยอง 2 กม.",
+            "โรงพยาบาลระยอง 3 กม."
+        ]
+    },
+    {
+        "lat": 7.8839071,
+        "lng": 98.3971726,
+         "type": "Suzuki",
+        "name": "บริษัท เอส.ยู.ซูซูกิ ภูเก็ต จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เซ็นทรัล ภูเก็ต 1 กม.",
+            "บิ๊กซี ภูเก็ต 2 กม.",
+            "โรงพยาบาลกรุงเทพ ภูเก็ต 3 กม."
+        ]
+    },
+    {
+        "lat": 16.0599616,
+        "lng": 103.6172674,
+         "type": "Suzuki",
+        "name": "บริษัท แหล่งรถร้อยเอ็ด จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "บิ๊กซี ร้อยเอ็ด 1 กม.",
+            "โรบินสัน ร้อยเอ็ด 2 กม.",
+            "โรงพยาบาลร้อยเอ็ด 3 กม."
+        ]
+    },
+    {
+         "lat": 10.5226101,
+        "lng": 99.0823208,
+         "type": "Suzuki",
+        "name": "บริษัท โชคอนันต์ออโต้เซลส์ จำกัด (สำนักงานใหญ่)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "ตลาดสดเทศบาลเมืองสุราษฎร์ธานี 1 กม.",
+            "เซ็นทรัล สุราษฎร์ธานี 2 กม.",
+           "โรงพยาบาลสุราษฎร์ธานี 3 กม."
+        ]
+    },
+     {
+         "lat": 13.1817536,
+         "lng": 100.9293681,
+        "type": "Suzuki",
+        "name": "บริษัท ไอทีโอเอ ออโต้เซลส์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "ตลาดสดเทศบาลเมืองอ่างทอง 1 กม.",
+            "บิ๊กซี อ่างทอง 2 กม.",
+            "โรงพยาบาลอ่างทอง 3 กม."
+        ]
+    },
+      {
+         "lat": 13.7567977,
+         "lng": 100.4693897,
+         "type": "Suzuki",
+        "name": "บริษัท คลัง ออโตโมบิลส์ จำกัด (สาขาจรัญสนิทวงศ์)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "แม็คโคร จรัญสนิทวงศ์ 1 กม.",
+            "เซ็นทรัล ปิ่นเกล้า 2 กม.",
+            "โรงพยาบาลศิริราช 3 กม."
+        ]
+    },
+     {
+         "lat": 15.0187638,
+         "lng": 102.0333711,
+         "type": "Suzuki",
+        "name": "บริษัท คลัง ออโตโมบิลส์ จำกัด (สาขาบายพาส)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "บิ๊กซี นครราชสีมา 1 กม.",
+            "เดอะมอลล์ โคราช 2 กม.",
+            "โรงพยาบาลมหาราชนครราชสีมา 3 กม."
+        ]
+    },
+     {
+         "lat": 14.9791915,
+         "lng": 102.0797032,
+         "type": "Suzuki",
+        "name": "บริษัท คลัง ออโตโมบิลส์ จำกัด (สำนักงานใหญ่)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เทอร์มินอล 21 โคราช 1 กม.",
+            "เซ็นทรัล โคราช 2 กม.",
+           "โรงพยาบาลกรุงเทพราชสีมา 3 กม."
+        ]
+    },
+    {
+        "lat": 7.5349888,
+        "lng": 99.6185515,
+         "type": "Suzuki",
+        "name": "บริษัท ชาญศิริ ออโต้เซลส์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองจันทบุรี 1 กม.",
+            "โรบินสัน จันทบุรี 2 กม.",
+            "โรงพยาบาลพระปกเกล้า จันทบุรี 3 กม."
+        ]
+    },
+     {
+        "lat": 13.8390748,
+        "lng": 102.0478584,
+         "type": "Suzuki",
+        "name": "บริษัท ชุนหลี ออโต เซลส์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองตรัง 1 กม.",
+           "โรบินสัน ตรัง 2 กม.",
+            "โรงพยาบาลตรัง 3 กม."
+        ]
+    },
+    {
+        "lat": 9.4647677,
+        "lng": 99.9739397,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ดับเบิลยูเอสซี ออโต้เซลล์ จำกัด (สาขาเกาะสมุย)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "บิ๊กซี เกาะสมุย 1 กม.",
+            "เทสโก้ โลตัส เกาะสมุย 2 กม.",
+            "หาดเฉวง 3 กม."
+        ]
+    },
+   {
+        "lat": 9.1228243,
+        "lng": 99.2867112,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ดับเบิลยูเอสซี ออโต้เซลส์ จำกัด (สำนักงานใหญ่)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "ตลาดสดเทศบาลเมืองสุราษฎร์ธานี 1 กม.",
+            "เซ็นทรัล สุราษฎร์ธานี 2 กม.",
+            "โรงพยาบาลสุราษฎร์ธานี 3 กม."
+        ]
+    },
+    {
+         "lat": 13.6452701,
+        "lng": 100.3624279,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ตงเจริญออโต้เซลส์ จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองอุบลราชธานี 1 กม.",
+           "เซ็นทรัล อุบลราชธานี 2 กม.",
+           "โรงพยาบาลสรรพสิทธิประสงค์ 3 กม."
+        ]
+    },
+    {
+        "lat": 14.1126241,
+        "lng": 100.6190612,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ นวนคร จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+             "โลตัสนวนคร 1 กม.",
+            "ตลาดไท 2 กม.",
+           "นิคมอุตสาหกรรมนวนคร 3 กม."
+        ]
+    },
+  {
+       "lat": 13.4701,
+        "lng": 101.1685602,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ บีเอ็นที จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองบุรีรัมย์ 1 กม.",
+            "โรบินสัน บุรีรัมย์ 2 กม.",
+             "สนามฟุตบอลช้างอารีน่า 3 กม."
+        ]
+    },
+    {
+        "lat": 13.7218663,
+        "lng": 100.6994628,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ มอเตอร์ (ประเทศไทย) จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "นิคมอุตสาหกรรมอมตะซิตี้ ชลบุรี 1 กม.",
+             "โรบินสัน บ่อวิน 5 กม.",
+             "โรงพยาบาลปิยะเวชช์ บ่อวิน 6 กม."
+        ]
+    },
+    {
+       "lat": 13.5759106,
+        "lng": 99.5413933,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ราชบุรี จำกัด (สำนักงานใหญ่)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "ตลาดสดเทศบาลเมืองราชบุรี 1 กม.",
+           "โรบินสัน ราชบุรี 2 กม.",
+            "โรงพยาบาลราชบุรี 3 กม."
+        ]
+    },
+    {
+        "lat": 13.8051368,
+        "lng": 99.8969406,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ราชบุรี จำกัด (สาขาบ้านโป่ง)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+             "ตลาดสดบ้านโป่ง 1 กม.",
+             "โลตัสบ้านโป่ง 2 กม.",
+            "โรงพยาบาลบ้านโป่ง 3 กม."
+        ]
+    },
+   {
+        "lat": 13.8264186,
+        "lng": 100.5559677,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ วิภาวดี จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "เซ็นทรัล ลาดพร้าว 2 กม.",
+            "ยูเนี่ยนมอลล์ 3 กม.",
+            "โรงพยาบาลวิภาวดี 4 กม."
+        ]
+    },
+ {
+        "lat": 13.8272728,
+        "lng": 100.4684742,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ วี.เอ็ม. ออโต้ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองสระบุรี 1 กม.",
+            "โรบินสัน สระบุรี 2 กม.",
+            "โรงพยาบาลสระบุรี 3 กม."
+        ]
+    },
+    {
+        "lat": 12.6004896,
+         "lng": 99.9468444,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ หัวหิน (สิทธิภัณฑ์) จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "มาร์เก็ตวิลเลจ หัวหิน 1 กม.",
+             "บลูพอร์ต หัวหิน 2 กม.",
+             "โรงพยาบาลกรุงเทพหัวหิน 3 กม."
+        ]
+    },
+    {
+        "lat": 18.7096297,
+        "lng": 98.792084,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิ ออโต้ เชียงใหม่ จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เซ็นทรัล เชียงใหม่ แอร์พอร์ต 2 กม.",
+            "บิ๊กซี เชียงใหม่ 3 กม.",
+            "โรงพยาบาลมหาราชนครเชียงใหม่ 4 กม."
+        ]
+    },
+     {
+        "lat": 17.3984268,
+        "lng": 102.7644741,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิเจียงอุดร จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "เซ็นทรัล อุดรธานี 1 กม.",
+             "บิ๊กซี อุดรธานี 2 กม.",
+            "โรงพยาบาลศูนย์อุดรธานี 3 กม."
+        ]
+    },
+ {
+        "lat": 13.083502,
+         "lng": 99.9418791,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิเพชรบุรี (สิทธิภัณฑ์) จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+           "บิ๊กซี เพชรบุรี 1 กม.",
+            "โรบินสัน เพชรบุรี 2 กม.",
+           "โรงพยาบาลพระจอมเกล้า จังหวัดเพชรบุรี 3 กม."
+        ]
+    },
+ {
+        "lat": 13.9856215,
+        "lng": 99.572236,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิกาญจนบุรี จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "โรบินสัน กาญจนบุรี 1 กม.",
+            "บิ๊กซี กาญจนบุรี 2 กม.",
+           "โรงพยาบาลพหลพลพยุหเสนา 3 กม."
+        ]
+    },
+    {
+        "lat": 14.783718,
+        "lng": 100.6806177,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิลพบุรี จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "บิ๊กซี ลพบุรี 1 กม.",
+            "โรบินสัน ลพบุรี 2 กม.",
+             "โรงพยาบาลพระนารายณ์มหาราช 3 กม."
+        ]
+    },
+    {
+         "lat": 17.3112651,
+         "lng": 99.8277281,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิสุโขทัย ออโต้โมบิล จำกัด (สาขาสวรรคโลก)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดสวรรคโลก 1 กม.",
+           "เทสโก้ โลตัส สวรรคโลก 2 กม.",
+            "โรงพยาบาลสวรรคโลก 3 กม."
+        ]
+    },
+    {
+        "lat": 17.0168806,
+        "lng": 99.8088752,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิสุโขทัย ออโต้โมบิล จำกัด (สำนักงานใหญ่)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "บิ๊กซี สุโขทัย 1 กม.",
+             "เทสโก้ โลตัส สุโขทัย 2 กม.",
+            "โรงพยาบาลสุโขทัย 3 กม."
+        ]
+    },
+    {
+        "lat": 13.7153348,
+        "lng": 100.4434707,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิอินดี้ บางหว้า จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ซีคอน บางแค 1 กม.",
+           "เดอะมอลล์ บางแค 2 กม.",
+            "โรงพยาบาลเกษมราษฎร์ บางแค 3 กม."
+        ]
+    },
+    {
+        "lat": 14.9074786,
+        "lng": 105.0673953,
+         "type": "Suzuki",
+        "name": "บริษัท ซูซูกิอุบลราชธานี จำกัด (สาขาเดชอุดม)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+           "ตลาดสดเทศบาลเมืองเดชอุดม 1 กม.",
+            "โรงพยาบาลสมเด็จพระยุพราชเดชอุดม 2 กม.",
+            "ที่ว่าการอำเภอเดชอุดม 3 กม."
+        ]
+    },
+    {
+        "lat": 15.3085391,
+        "lng": 104.8334926,
+        "type": "Suzuki",
+        "name": "บริษัท ซูซูกิอุบลราชธานี จำกัด (สำนักงานใหญ่)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เซ็นทรัล อุบลราชธานี 1 กม.",
+             "บิ๊กซี อุบลราชธานี 2 กม.",
+            "โรงพยาบาลสรรพสิทธิประสงค์ 3 กม."
+        ]
+    },
+  {
+        "lat": 13.67901,
+        "lng": 100.4036069,
+        "type": "Suzuki",
+        "name": "บริษัท ดี โฟร์ คาร์ซิตี้ จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "บิ๊กซี นครปฐม 1 กม.",
+           "เทสโก้ โลตัส นครปฐม 2 กม.",
+           "องค์พระปฐมเจดีย์ 3 กม."
+        ]
+    },
+     {
+        "lat": 16.4731301,
+        "lng": 99.4777598,
+        "type": "Suzuki",
+        "name": "บริษัท ที เค ซี มอเตอร์ลิสซิ่ง จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองกาฬสินธุ์ 1 กม.",
+             "บิ๊กซี กาฬสินธุ์ 2 กม.",
+             "โรงพยาบาลกาฬสินธุ์ 3 กม."
+        ]
+    },
+    {
+        "lat": 8.13999,
+        "lng": 99.3846783,
+         "type": "Suzuki",
+        "name": "บริษัท ทุ่งสงปิยะมอเตอร์ส จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดทุ่งสง 1 กม.",
+            "เทสโก้ โลตัส ทุ่งสง 2 กม.",
+             "โรงพยาบาลทุ่งสง 3 กม."
+        ]
+    },
+      {
+        "lat": 14.1126241,
+        "lng": 100.6190612,
+         "type": "Suzuki",
+        "name": "บริษัท นวซูซูกิ ปทุมธานี จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+             "โลตัส ปทุมธานี 1 กม.",
+             "บิ๊กซี ปทุมธานี 2 กม.",
+            "ศาลากลางจังหวัดปทุมธานี 3 กม."
+        ]
+    },
+   {
+        "lat": 13.8584539,
+        "lng": 100.4094477,
+        "type": "Suzuki",
+        "name": "บริษัท นวออโตโมบิล บางใหญ่ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "เซ็นทรัล เวสต์เกต 2 กม.",
+            "อิเกีย บางใหญ่ 3 กม.",
+             "โรงพยาบาลเกษมราษฎร์ รัตนาธิเบศร์ 4 กม."
+        ]
+    },
+     {
+        "lat": 16.7852637,
+         "lng": 100.2017428,
+        "type": "Suzuki",
+        "name": "บริษัท นิธิบูรณ์เซลส์แอนด์เซอร์วิส จำกัด",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองสกลนคร 1 กม.",
+             "โรบินสัน สกลนคร 2 กม.",
+            "โรงพยาบาลสกลนคร 3 กม."
+        ]
+    },
+    {
+         "lat": 13.7361016,
+         "lng": 100.6105773,
+        "type": "Suzuki",
+        "name": "บริษัท บ้านซูซูกิ ออโตโมบิล จำกัด (สาขาพัฒนาการ)",
+       "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เดอะไนน์ พระราม 9 1 กม.",
+            "ซีคอนสแควร์ ศรีนครินทร์ 2 กม.",
+            "โรงพยาบาลสมิติเวช ศรีนครินทร์ 3 กม."
+        ]
+    },
+    {
+        "lat": 13.6457223,
+         "lng": 100.409621,
+        "type": "Suzuki",
+        "name": "บริษัท บ้านซูซูกิ ออโตโมบิล จำกัด (สำนักงานใหญ่)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+             "เมกา บางนา 1 กม.",
+             "เซ็นทรัล บางนา 2 กม.",
+           "โรงพยาบาลไทยนครินทร์ 3 กม."
+        ]
+    },
+    {
+        "lat": 16.7088761,
+        "lng": 98.5453407,
+        "type": "Suzuki",
+        "name": "บริษัท บี.เค. ออโต้ โมบิล จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองกาฬสินธุ์ 1 กม.",
+            "บิ๊กซี กาฬสินธุ์ 2 กม.",
+            "โรงพยาบาลกาฬสินธุ์ 3 กม."
+        ]
+    },
+    {
+        "lat": 13.5821502,
+        "lng": 100.8333751,
+        "type": "Suzuki",
+        "name": "บริษัท บีบี ซูซูกิ ออโต้ จำกัด (สาขาบางบ่อ)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดบางบ่อ 1 กม.",
+            "โลตัส บางบ่อ 2 กม.",
+            "โรงพยาบาลบางบ่อ 3 กม."
+        ]
+    },
+    {
+        "lat": 13.9305846,
+        "lng": 100.5715212,
+        "type": "Suzuki",
+        "name": "บริษัท บีบี ซูซูกิ ออโต้ จำกัด (สำนักงานใหญ่)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "เมกา บางนา 2 กม.",
+            "เซ็นทรัล บางนา 3 กม.",
+             "โรงพยาบาลไทยนครินทร์ 4 กม."
+        ]
+    },
+     {
+        "lat": 12.3962699,
+        "lng": 99.9177984,
+        "type": "Suzuki",
+        "name": "บริษัท พ.บรรจง ออโตซัพพลาย จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลนครพิษณุโลก 1 กม.",
+            "เซ็นทรัล พิษณุโลก 2 กม.",
+            "โรงพยาบาลพุทธชินราช พิษณุโลก 3 กม."
+        ]
+    },
+    {
+       "lat": 17.4660872,
+        "lng": 101.7231966,
+        "type": "Suzuki",
+        "name": "บริษัท พัฒนชัยยนต์ ออโต้กรุ๊ป จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองพิจิตร 1 กม.",
+             "บิ๊กซี พิจิตร 2 กม.",
+            "โรงพยาบาลพิจิตร 3 กม."
+        ]
+    },
+      {
+        "lat": 13.6259102,
+        "lng": 100.722172,
+        "type": "Suzuki",
+        "name": "บริษัท พีพี เมกะ ออโต้ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+            "ตลาดสดเทศบาลเมืองเพชรบูรณ์ 1 กม.",
+            "โลตัส เพชรบูรณ์ 2 กม.",
+            "โรงพยาบาลเพชรบูรณ์ 3 กม."
+        ]
+    },
+     {
+        "lat": 13.8095956,
+        "lng": 100.7992233,
+         "type": "Suzuki",
+        "name": "บริษัท มหานคร ออโต้ กรุ๊ป จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดมีนบุรี 1 กม.",
+            "บิ๊กซี สุวินทวงศ์ 2 กม.",
+             "โรงพยาบาลนวมินทร์ 9 3 กม."
+        ]
+    },
+     {
+        "lat": 13.701509,
+        "lng": 100.5024524,
+        "type": "Suzuki",
+        "name": "บริษัท มาพรพาณิชย์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+            "ตลาดสดเทศบาลเมืองแม่สอด 1 กม.",
+             "บิ๊กซี แม่สอด 2 กม.",
+            "โรงพยาบาลแม่สอด 3 กม."
+        ]
+    },
+     {
+        "lat": 17.3819873,
+        "lng": 104.7505377,
+        "type": "Suzuki",
+        "name": "บริษัท มิตรชัย ไชโย จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+            "ตลาดสดไชโย 1 กม.",
+            "โลตัสไชโย 2 กม.",
+            "โรงพยาบาลไชโย 3 กม."
+        ]
+    },
+    {
+        "lat": 13.9066111,
+        "lng": 100.5100053,
+         "type": "Suzuki",
+        "name": "บริษัท ยนต์ตระการ พรีเมียม คาร์ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+             "เซ็นทรัล ขอนแก่น 1 กม.",
+            "บิ๊กซี ขอนแก่น 2 กม.",
+             "โรงพยาบาลขอนแก่น 3 กม."
+        ]
+    },
+    {
+         "lat": 6.5735561,
+        "lng": 101.2936288,
+         "type": "Suzuki",
+        "name": "บริษัท ยะลา ออโต้เซลส์ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองยะลา 1 กม.",
+            "บิ๊กซี ยะลา 2 กม.",
+             "โรงพยาบาลยะลา 3 กม."
+        ]
+    },
+    {
+        "lat": 13.7286609,
+        "lng": 100.5779894,
+        "type": "Suzuki",
+        "name": "บริษัท ยูโรเปียน มอเตอร์คาร์ จำกัด (สาขาทองหล่อ)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "เอ็มควอเทียร์ 1 กม.",
+            "เอ็มโพเรียม 2 กม.",
+            "โรงพยาบาลสมิติเวช สุขุมวิท 3 กม."
+        ]
+    },
+     {
+        "lat": 13.7703463,
+        "lng": 100.6599945,
+        "type": "Suzuki",
+        "name": "บริษัท ยูโรเปียน มอเตอร์คาร์ จำกัด (สำนักงานใหญ่)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "เซ็นทรัล พระราม 3 1 กม.",
+            "โลตัส พระราม 3 2 กม.",
+            "โรงพยาบาลเจริญกรุงประชารักษ์ 3 กม."
+        ]
+    },
+     {
+        "lat": 14.4812025,
+        "lng": 100.747272,
+        "type": "Suzuki",
+         "name": "บริษัท วัชรเซลส์ แอนด์ เซอร์วิส จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+            "ตลาดสดเทศบาลเมืองสิงห์บุรี 1 กม.",
+            "บิ๊กซี สิงห์บุรี 2 กม.",
+            "โรงพยาบาลสิงห์บุรี 3 กม."
+        ]
+    },
+    {
+        "lat": 13.5715762,
+        "lng": 100.2897701,
+        "type": "Suzuki",
+        "name": "บริษัท วัฒนา ออโต้โมบิล จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองกำแพงเพชร 1 กม.",
+             "บิ๊กซี กำแพงเพชร 2 กม.",
+             "โรงพยาบาลกำแพงเพชร 3 กม."
+        ]
+    },
+    {
+        "lat": 18.7923596,
+        "lng": 100.7265683,
+        "type": "Suzuki",
+        "name": "บริษัท วี กรุ๊ป ซูซูกิ คาร์ จำกัด (สาขาน่าน)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองน่าน 1 กม.",
+             "บิ๊กซี น่าน 2 กม.",
+            "โรงพยาบาลน่าน 3 กม."
+        ]
+    },
+    {
+        "lat": 14.9152965,
+        "lng": 103.4761505,
+        "type": "Suzuki",
+        "name": "บริษัท วี.พี.เอส. ออโต้เซลล์ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดเทศบาลเมืองมหาสารคาม 1 กม.",
+             "เสริมไทยคอมเพล็กซ์ มหาสารคาม 2 กม.",
+             "โรงพยาบาลมหาสารคาม 3 กม."
+        ]
+    },
+    {
+       "lat": 17.1705741,
+       "lng": 104.1379421,
+        "type": "Suzuki",
+        "name": "บริษัท ศิริยนต์ออโตเซลส์ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองนครนายก 1 กม.",
+            "โลตัส นครนายก 2 กม.",
+            "โรงพยาบาลนครนายก 3 กม."
+        ]
+    },
+    {
+       "lat": 7.0191112,
+        "lng": 100.4901549,
+       "type": "Suzuki",
+        "name": "บริษัท สยามเมืองรถ 1991 จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองกาญจนบุรี 1 กม.",
+             "โรบินสัน กาญจนบุรี 2 กม.",
+            "โรงพยาบาลพหลพลพยุหเสนา 3 กม."
+        ]
+    },
+    {
+        "lat": 12.2501311,
+        "lng": 102.5205792,
+        "type": "Suzuki",
+        "name": "บริษัท สยามซูซูกิ ตราด จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+            "ตลาดสดเทศบาลเมืองตราด 1 กม.",
+            "บิ๊กซี ตราด 2 กม.",
+            "โรงพยาบาลตราด 3 กม."
+        ]
+    },
+    {
+        "lat": 14.3817276,
+        "lng": 99.9047205,
+        "type": "Suzuki",
+        "name": "บริษัท สยามยนต์ โมเดิร์น คาร์ จำกัด (สาขาอู่ทอง)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+         "nearby": [
+            "ตลาดสดอู่ทอง 1 กม.",
+             "โลตัสอู่ทอง 2 กม.",
+            "โรงพยาบาลอู่ทอง 3 กม."
+        ]
+    },
+     {
+        "lat": 14.4894181,
+        "lng": 100.1318979,
+        "type": "Suzuki",
+         "name": "บริษัท สยามยนต์ โมเดิร์น คาร์ จำกัด (สำนักงานใหญ่)",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+        "nearby": [
+             "ตลาดสดเทศบาลเมืองสุพรรณบุรี 1 กม.",
+             "โรบินสัน สุพรรณบุรี 2 กม.",
+             "โรงพยาบาลเจ้าพระยายมราช 3 กม."
+        ]
+    },
+    {
+       "lat": 15.788113,
+       "lng": 102.0019951,
+       "type": "Suzuki",
+         "name": "บริษัท สำราญยนตรการ ชัยภูมิ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองชัยภูมิ 1 กม.",
+             "บิ๊กซี ชัยภูมิ 2 กม.",
+             "โรงพยาบาลชัยภูมิ 3 กม."
+        ]
+    },
+    {
+       "lat": 13.9293374,
+       "lng": 100.4104749,
+         "type": "Suzuki",
+        "name": "บริษัท สุพรรณยนตการ เทรดดิ้ง จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองสุพรรณบุรี 1 กม.",
+             "โรบินสัน สุพรรณบุรี 2 กม.",
+            "โรงพยาบาลเจ้าพระยายมราช 3 กม."
+        ]
+    },
+    {
+        "lat": 18.8127176,
+        "lng": 99.0313224,
+        "type": "Suzuki",
+        "name": "บริษัท อริยกิจ จี.พี. จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองเลย 1 กม.",
+             "บิ๊กซี เลย 2 กม.",
+             "โรงพยาบาลเลย 3 กม."
+        ]
+    },
+    {
+        "lat": 16.4628547,
+        "lng": 102.8317612,
+         "type": "Suzuki",
+        "name": "บริษัท อาร์เฮงวัฒนา จำกัด (สาขาเมืองขอนแก่น)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+              "เซ็นทรัล ขอนแก่น 1 กม.",
+              "บิ๊กซี ขอนแก่น 2 กม.",
+             "โรงพยาบาลขอนแก่น 3 กม."
+        ]
+    },
+    {
+        "lat": 16.39409,
+        "lng": 102.8095665,
+        "type": "Suzuki",
+         "name": "บริษัท อาร์เฮงวัฒนา จำกัด (สำนักงานใหญ่)",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองหนองคาย 1 กม.",
+            "โลตัส หนองคาย 2 กม.",
+             "โรงพยาบาลหนองคาย 3 กม."
+        ]
+    },
+    {
+       "lat": 14.9072193,
+       "lng": 100.4045601,
+       "type": "Suzuki",
+        "name": "บริษัท อินเตอร์เทรด ซูซูกิ จำกัด",
+        "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองนครศรีธรรมราช 1 กม.",
+             "โรบินสัน นครศรีธรรมราช 2 กม.",
+            "โรงพยาบาลมหาราชนครศรีธรรมราช 3 กม."
+        ]
+    },
+     {
+       "lat": 17.3279546,
+       "lng": 102.8401855,
+       "type": "Suzuki",
+        "name": "บริษัท อุดรพิจิตรเพชรออโต้เซลส์ จำกัด",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+             "ตลาดสดเทศบาลเมืองพิจิตร 1 กม.",
+             "บิ๊กซี พิจิตร 2 กม.",
+             "โรงพยาบาลพิจิตร 3 กม."
+        ]
+    },
+    {
+        "lat": 15.8152293,
+        "lng": 104.1276217,
+        "type": "Suzuki",
+        "name": "ห้างหุ้นส่วนจำกัด เอส.เอ็ม.วาย.มอเตอร์ กรุ๊ป",
+         "image": "https://logowik.com/content/uploads/images/197_suzuki.jpg",
+          "nearby": [
+            "ตลาดสดเทศบาลเมืองระนอง 1 กม.",
+             "บิ๊กซี ระนอง 2 กม.",
+            "โรงพยาบาลระนอง 3 กม."
+        ]
+    },
+    {
+      "lat": 13.8202655,
+      "lng": 100.841914,
+      "type": "Riddara",
+      "name": "Riddara TST Nongchok (หนองจอก)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "สำนักงานเขตหนองจอก 1 กม.",
+        "มหาวิทยาลัยเทคโนโลยีมหานคร 3 กม.",
+        "ตลาดหนองจอก 5 กม."
+        ]
+    },
+    {
+      "lat": 13.7174021,
+      "lng": 100.6552885,
+      "type": "Riddara",
+      "name": "Riddara SGT On Nut (อ่อนนุช)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "สถานีรถไฟฟ้า Airport Rail Link บ้านทับช้าง 1 กม.",
+        "The Paseo Mall ลาดกระบัง 3 กม.",
+        "ตลาดรันเวย์ 5 กม."
+        ]
+    },
+    {
+      "lat": 13.8843966,
+      "lng": 100.6534185,
+      "type": "Riddara",
+      "name": "Riddara 555 Sukhapiban 5 (สุขาภิบาล 5)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "ตลาดวงศกร 2 กม.",
+        "โรงพยาบาลสายไหม 3 กม.",
+        "บิ๊กซี มาร์เก็ต สายไหม 4 กม."
+        ]
+    },
+    {
+      "lat": 14.0653577,
+      "lng": 100.5076752,
+      "type": "Riddara",
+      "name": "Riddara Creation Khlongluang (คลองหลวง)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "ตลาดไท 2 กม.",
+        "มหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต 5 กม.",
+        "วัดพระธรรมกาย 7 กม."
+        ]
+    },
+    {
+      "lat": 13.9340404,
+      "lng": 100.7247971,
+      "type": "Riddara",
+      "name": "Riddara Akayar Lamlukka (ลำลูกกา)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "บิ๊กซี ลำลูกกา คลอง 5 1 กม.",
+        "โฮมโปร ลำลูกกา 2 กม.",
+        "ตลาดกลางลาดสวาย 7 กม."
+        ]
+    },
+    {
+      "lat": 13.8822294,
+      "lng": 100.5786309,
+      "type": "Riddara",
+      "name": "Riddara Gainbon Laksi (หลักสี่)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "ไอที สแควร์ หลักสี่ 1 กม.",
+        "มหาวิทยาลัยราชภัฏพระนคร 2 กม.",
+        "วัดหลักสี่ 4 กม."
+        ]
+    },
+    {
+      "lat": 13.8007824,
+      "lng": 100.6431436,
+      "type": "Riddara",
+      "name": "Riddara Vgroup Phokaew (โพธิ์แก้ว)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "โรงเรียนพระหฤทัยนนทบุรี 2 กม.",
+        "วัดกู้ 4 กม.",
+        "โรงพยาบาลมงกุฎวัฒนะ 6 กม."
+        ]
+    },
+    {
+      "lat": 13.5413177,
+      "lng": 100.6172376,
+      "type": "Riddara",
+      "name": "Riddara Getop Bangpu (บางปู)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "นิคมอุตสาหกรรมบางปู 1 กม.",
+        "สถานตากอากาศบางปู 5 กม.",
+        "ตลาดตำหรุ 6 กม."
+        ]
+    },
+    {
+      "lat": 13.8515872,
+      "lng": 100.4490466,
+      "type": "Riddara",
+      "name": "Riddara TMC Ratchapruek (ราชพฤกษ์)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "The Walk ราชพฤกษ์ 2 กม.",
+        "HomePro ราชพฤกษ์ 3 กม.",
+        "ตลาดเจ้าพระยา 7 กม."
+        ]
+    },
+    {
+      "lat": 19.8908309,
+      "lng": 99.8320091,
+      "type": "Riddara",
+      "name": "Riddara AMC Chiangrai (เชียงราย)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "บิ๊กซี เชียงราย 4 กม.",
+        "เซ็นทรัล เชียงราย 5 กม.",
+        "วัดห้วยปลากั้ง 8 กม."
+        ]
+    },
+    {
+      "lat": 13.9930708,
+      "lng": 100.478307,
+      "type": "Riddara",
+      "name": "Riddara Auto Nation Pathumthani (ปทุมธานี)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "ศาลากลางจังหวัดปทุมธานี 3 กม.",
+        "ตลาดสดปทุมธานี 5 กม.",
+        "วัดเขียนเขต 7 กม."
+        ]
+    },
+    {
+      "lat": 18.8140436,
+      "lng": 99.0089675,
+      "type": "Riddara",
+      "name": "Riddara AMC Chiangmai (เชียงใหม่)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "เซ็นทรัล เชียงใหม่ แอร์พอร์ต 3 กม.",
+        "สนามบินเชียงใหม่ 5 กม.",
+        "วัดพระธาตุดอยคำ 7 กม."
+        ]
+    },
+    {
+      "lat": 7.0117364,
+      "lng": 100.4311015,
+      "type": "Riddara",
+      "name": "Riddara RD Hatyai (หาดใหญ่ สงขลา)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "เซ็นทรัล หาดใหญ่ 3 กม.",
+        "ตลาดกิมหยง 5 กม.",
+        "วัดฉื่อฉาง 7 กม."
+        ]
+    },
+    {
+      "lat": 13.660143,
+      "lng": 101.122922,
+      "type": "Riddara",
+      "name": "Riddara DBH Chachoengsao (ฉะเชิงเทรา)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "วัดหลวงพ่อโสธรวรารามวรวิหาร 5 กม.",
+        "ตลาดบ้านใหม่ 100 ปี 7 กม.",
+        "โรบินสัน ฉะเชิงเทรา 9 กม."
+        ]
+    },
+    {
+      "lat": 13.4474255,
+      "lng": 100.9999574,
+      "type": "Riddara",
+      "name": "Riddara Pinpat Chonburi (ชลบุรี)",
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT606mD74rS2aBuzx8_AEBybDPaT2dm5xmWO_7J-MaXuqrp5LZ0wh7I4NOZa50PaPZtlog&usqp=CAU",
+      "nearby": [
+        "เซ็นทรัล ชลบุรี 5 กม.",
+        "โรงพยาบาลชลบุรี 7 กม.",
+        "บิ๊กซี ชลบุรี 10 กม."
+        ]
+    }
+      ]; 
+
+      function handleApiError() {
+        alert("ไม่สามารถโหลด Google Maps API ได้ กรุณาลองใหม่ในภายหลัง.");
+      }
+
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: 13.7563, lng: 100.5018 },
+          zoom: 10,
+        });
+
+        addMarkers();
+
+        const searchInput = document.getElementById('searchInput');
+        const searchBox = new google.maps.places.SearchBox(searchInput);
+
+        map.addListener('bounds_changed', function() {
+          searchBox.setBounds(map.getBounds());
+        });
+
+        searchBox.addListener('places_changed', function() {
+          const places = searchBox.getPlaces();
+          if (places.length === 0) {
+            return;
+          }
+          updateMapWithSearch(places);
+        });
+
+        document.getElementById('filter').addEventListener('change', function() {
+          filterMarkers(this.value);
+        });
+      }
+
+      function addMarkers() {
+        for (let i = 0; i < locations.length; i++) {
+          const marker = createMarker(locations[i]);
+          markers.push(marker);
+        }
+      }
+
+      let currentInfoWindow;
+
+      function createMarker(location) {
+        const iconMap = {
+          "BMW": { url: 'https://cdn-icons-png.flaticon.com/128/9131/9131546.png', scaledSize: new google.maps.Size(32, 32) },
+          "Mercedes Benz": { url: 'https://cdn-icons-png.flaticon.com/128/7976/7976202.png', scaledSize: new google.maps.Size(32, 32) },
+          "Royal Enfield": { url: 'https://cdn-icons-png.flaticon.com/128/14307/14307428.png', scaledSize: new google.maps.Size(32, 32) },
+          "Ford": { url: 'https://cdn-icons-png.flaticon.com/128/8065/8065834.png', scaledSize: new google.maps.Size(32, 32) },
+          "Mini": { url: 'https://cdn-icons-png.flaticon.com/128/14035/14035502.png', scaledSize: new google.maps.Size(42, 42) },
+          "Suzuki": { url: 'https://cdn-icons-png.flaticon.com/128/6532/6532042.png', scaledSize: new google.maps.Size(38, 38) },
+          "Riddara": { url: 'https://cdn-icons-png.flaticon.com/128/12636/12636606.png', scaledSize: new google.maps.Size(36, 36) }
+        };
+
+        const defaultIcon = {
+        url: 'https://cdn-icons-png.flaticon.com/128/18484/18484450.png',
+        scaledSize: new google.maps.Size(52, 52)
+        };
+
+        const icon = location.type === 'search'
+        ? defaultIcon
+        : (iconMap[location.type] || defaultIcon);
+
+        const marker = new google.maps.Marker({
+        position: { lat: location.lat, lng: location.lng },
+        map: map,
+        title: location.name,
+        icon: icon
+        });
+
+
+        const brandClass = location.type.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+        const infowindow = new google.maps.InfoWindow({
+          content: `
+            <div class="marker-content ${brandClass}">
+              <img src="${location.image || '/api/placeholder/50/50'}" alt="${location.name}" />
+              <div class="text">
+                <h3>${location.name}</h3>
+                ${location.nearby && location.nearby.length > 0 ? `
+                  <p class="nearby-title">สถานที่ใกล้เคียง</p>
+                  <ul>
+                    ${location.nearby.map(place => `<li>${place}</li>`).join("")}
+                  </ul>
+                ` : ''}
+              </div>
+            </div>
+          `,
+          disableAutoPan: true
+        });
+
+        google.maps.event.addListener(marker, 'click', function() {
+          if (currentInfoWindow) {
+            currentInfoWindow.close();
+          }
+          infowindow.open(map, marker);
+          currentInfoWindow = infowindow;
+        });
+
+        return marker;
+      }
+
+      function updateMapWithSearch(places) {
+        searchMarkers.forEach(marker => {
+          marker.setMap(null);
+        });
+        searchMarkers = [];
+
+        places.forEach(place => {
+        const location = {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        name: place.name || "ผลการค้นหา",
+        type: 'search', // 👈 เพิ่มตรงนี้เพื่อใช้ defaultIcon
+        image: '',      // ใส่ไว้ให้ InfoWindow ไม่พัง (จะใส่ URL ภาพก็ได้)
+        nearby: []      // หรือเพิ่มสถานที่ใกล้เคียงถ้ามี
+      };
+
+        const marker = createMarker(location); // 👈 ใช้ createMarker() เหมือนตัวหลัก
+        searchMarkers.push(marker);
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(15);
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+      });
+
+      }
+
+      function filterMarkers(type) {
+        markers.forEach(marker => {
+          marker.setMap(null);
+        });
+
+        markers = [];
+
+        if (type === "all") {
+          addMarkers();
+        } else {
+          locations.forEach(location => {
+            if (location.type === type) {
+              const marker = createMarker(location);
+              markers.push(marker);
+            }
+          });
+        }
+      }
+    </script>
+  </body>
+</html>
