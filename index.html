@@ -1,112 +1,20 @@
 <!DOCTYPE html>
 <html style="height: 100%;">
   <head>
-    <title>Google My Multi Map</title>
+    <title>Google My Multi Map - Modern UI</title>
+    <link rel="stylesheet" href="styles.css">
     <script
       src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDQd8K5aaM0V9ph55_d5FMKj0od2OCHOzI&libraries=places&callback=initMap"
       async
       defer
       onerror="handleApiError()"
     ></script>
-    <style>
-      body, html {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      #map {
-        height: 80vh;
-        width: 100%;
-      }
-      #controls {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px;
-      }
-      #searchInput {
-        height: 20px;
-        width: 300px;
-      }
-      #user-info {
-      text-align: left;
-      margin-bottom: 10px;
-      padding-left: 10px;
-      font-size: 16px;
-      color: #333;
-      }
-      .marker-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 5px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        background-color: #ffffff; /* เปลี่ยนพื้นหลังเป็นสีขาว */
-        color: black; /* เปลี่ยนข้อความทั้งหมดเป็นสีดำ */
-        font-family: Arial, sans-serif;
-      }
-      /* เปลี่ยนข้อความในแบรนด์ต่าง ๆ เป็นสีดำ */
-      .marker-content.bmw,
-      .marker-content.mercedes,
-      .marker-content.royal-enfield,
-      .marker-content.ford,
-      .marker-content.mini,
-      .marker-content.suzuki,
-      .marker-content.riddara {
-        background-color: #ffffff; /* พื้นหลังเป็นสีขาว */
-        color: black; /* ข้อความเป็นสีดำ */
-      }
-      .marker-content .text {
-        text-align: center;
-      }
-      .gm-style-iw {
-        padding: 8 !important;
-      }
-      .gm-style-iw-tc {
-        display: none;
-      }
-      .gm-ui-hover-effect {
-        display: none !important;
-      }
-      .custom-marker {
-        position: absolute;
-        cursor: pointer;
-        width: 32px;
-        height: 32px;
-        animation: bounce 0.10s infinite alternate;
-      }
-      @keyframes bounce {
-        from { transform: translateY(0px); }
-        to { transform: translateY(-10px); }
-      }
-      .marker-content img {
-        max-width: 100%; /* ทำให้รูปยืดเต็มขนาดกล่อง */
-        max-height: 100px; /* จำกัดความสูงของรูป */
-        height: auto; /* ยืดตามอัตราส่วน */
-        border-radius: 8px;
-      }
-      .marker-content ul {
-        text-align: left; /* จัดข้อความในรายการให้ชิดซ้าย */
-        padding-left: 20px; /* เพิ่มช่องว่างด้านซ้ายของรายการ */
-      }
-      .nearby-title {
-        font-weight: bold; /* ทำข้อความใน <p> ให้เป็นตัวหนา */
-      }
-      .marker-content {
-        border-radius: 0px; /* ปรับค่า border-radius ตามที่ต้องการ */
-        padding: 5px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        background-color: #ffffff;
-        color: black;
-        font-family: Arial, sans-serif;
-      }
-    </style>
   </head>
   <body>
     <div id="controls">
-      <input id="searchInput" type="text" placeholder="ค้นหาสถานที่..." />
+      <input id="searchInput" type="text" placeholder="ค้นหาโชว์รูมหรือสถานที่..." />
       <select id="filter">
-        <option value="all">ทั้งหมด</option>
+        <option value="all">แบรนด์ทั้งหมด</option>
         <option value="BMW">BMW</option>
         <option value="Mercedes Benz">Mercedes Benz</option>
         <option value="Royal Enfield">Royal Enfield</option>
@@ -117,15 +25,34 @@
       </select>
     </div>
 
-    <div id="user-info" style="padding: 0 10px; font-weight: bold;">
-    ยินดีต้อนรับ: <span id="user-name"></span>
-  </div>    
+    <div id="map-container">
+      <div id="map"></div>
 
-    <div id="map"></div>
+      <div id="location-details-panel">
+        <button id="close-panel-btn" title="ปิด">&times;</button>
+        <div id="panel-content">
+          <img id="panel-image" src="" alt="Location Image">
+          <div id="panel-text">
+            <h3 id="panel-name"></h3>
+            <div id="panel-nearby-container">
+              <p class="nearby-title">สถานที่ใกล้เคียง</p>
+              <ul id="panel-nearby-list">
+                <!-- ข้อมูลจะถูกใส่โดย JavaScript -->
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       let map;
       let markers = [];
       let searchMarkers = [];
+      let activeMarker = null;
+
+      let locationPanel, panelImage, panelName, panelNearbyList, closePanelBtn;
+
       const locations = [
         {
             "lat": 13.8085613,
@@ -374,7 +301,7 @@
             "name": "Performance Motors (Ayutthaya)",
             "image": "https://logowik.com/content/uploads/images/bmw-2020-new-logo.jpg",
             "nearby": ["Siam Park City 2 กม.", "วัดพระศรีสรรเพชญ์ 4 กม.", "สนามบินดอนเมือง 5 กม."]
-        }, // BMW ทั้งหมด 33 โชว์รูม
+        },
         {
             "lat": 13.7369466,
             "lng": 100.543675,
@@ -3521,18 +3448,27 @@
         "เซ็นทรัล ชลบุรี 5 กม.",
         "โรงพยาบาลชลบุรี 7 กม.",
         "บิ๊กซี ชลบุรี 10 กม."
-        ]
+      ]
     }
-      ]; 
+      ];
 
       function handleApiError() {
         alert("ไม่สามารถโหลด Google Maps API ได้ กรุณาลองใหม่ในภายหลัง.");
       }
 
       function initMap() {
+        locationPanel = document.getElementById('location-details-panel');
+        panelImage = document.getElementById('panel-image');
+        panelName = document.getElementById('panel-name');
+        panelNearbyList = document.getElementById('panel-nearby-list');
+        closePanelBtn = document.getElementById('close-panel-btn');
+
         map = new google.maps.Map(document.getElementById('map'), {
           center: { lat: 13.7563, lng: 100.5018 },
           zoom: 10,
+          disableDefaultUI: true,
+          zoomControl: true,
+          streetViewControl: false
         });
 
         addMarkers();
@@ -3540,31 +3476,26 @@
         const searchInput = document.getElementById('searchInput');
         const searchBox = new google.maps.places.SearchBox(searchInput);
 
-        map.addListener('bounds_changed', function() {
-          searchBox.setBounds(map.getBounds());
-        });
+        map.addListener('bounds_changed', () => searchBox.setBounds(map.getBounds()));
 
-        searchBox.addListener('places_changed', function() {
+        searchBox.addListener('places_changed', () => {
           const places = searchBox.getPlaces();
-          if (places.length === 0) {
-            return;
-          }
+          if (places.length === 0) return;
           updateMapWithSearch(places);
         });
 
-        document.getElementById('filter').addEventListener('change', function() {
-          filterMarkers(this.value);
-        });
+        document.getElementById('filter').addEventListener('change', (e) => filterMarkers(e.target.value));
+        
+        closePanelBtn.addEventListener('click', hideLocationDetails);
+        map.addListener('click', hideLocationDetails);
       }
 
       function addMarkers() {
-        for (let i = 0; i < locations.length; i++) {
-          const marker = createMarker(locations[i]);
+        locations.forEach(location => {
+          const marker = createMarker(location);
           markers.push(marker);
-        }
+        });
       }
-
-      let currentInfoWindow;
 
       function createMarker(location) {
         const iconMap = {
@@ -3574,100 +3505,114 @@
           "Ford": { url: 'https://cdn-icons-png.flaticon.com/128/8065/8065834.png', scaledSize: new google.maps.Size(32, 32) },
           "Mini": { url: 'https://cdn-icons-png.flaticon.com/128/14035/14035502.png', scaledSize: new google.maps.Size(42, 42) },
           "Suzuki": { url: 'https://cdn-icons-png.flaticon.com/128/6532/6532042.png', scaledSize: new google.maps.Size(38, 38) },
-          "Riddara": { url: 'https://cdn-icons-png.flaticon.com/128/12636/12636606.png', scaledSize: new google.maps.Size(36, 36) }
+          "Riddara": { url: 'https://cdn-icons-png.flaticon.com/128/12636/12636606.png', scaledSize: new google.maps.Size(36, 36) },
+          "search": { url: 'https://cdn-icons-png.flaticon.com/128/18484/18484450.png', scaledSize: new google.maps.Size(52, 52) }
         };
-
-        const defaultIcon = {
-        url: 'https://cdn-icons-png.flaticon.com/128/18484/18484450.png',
-        scaledSize: new google.maps.Size(52, 52)
-        };
-
-        const icon = location.type === 'search'
-        ? defaultIcon
-        : (iconMap[location.type] || defaultIcon);
+        
+        const icon = iconMap[location.type] || iconMap['search'];
 
         const marker = new google.maps.Marker({
-        position: { lat: location.lat, lng: location.lng },
-        map: map,
-        title: location.name,
-        icon: icon
+          position: { lat: location.lat, lng: location.lng },
+          map: map,
+          title: location.name,
+          icon: icon,
+          animation: null
         });
 
-
-        const brandClass = location.type.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-        const infowindow = new google.maps.InfoWindow({
-          content: `
-            <div class="marker-content ${brandClass}">
-              <img src="${location.image || '/api/placeholder/50/50'}" alt="${location.name}" />
-              <div class="text">
-                <h3>${location.name}</h3>
-                ${location.nearby && location.nearby.length > 0 ? `
-                  <p class="nearby-title">สถานที่ใกล้เคียง</p>
-                  <ul>
-                    ${location.nearby.map(place => `<li>${place}</li>`).join("")}
-                  </ul>
-                ` : ''}
-              </div>
-            </div>
-          `,
-          disableAutoPan: true
-        });
-
-        google.maps.event.addListener(marker, 'click', function() {
-          if (currentInfoWindow) {
-            currentInfoWindow.close();
+        marker.addListener('click', (event) => {
+          event.domEvent.stopPropagation(); 
+          
+          showLocationDetails(location);
+          
+          if (activeMarker) {
+            activeMarker.setAnimation(null);
           }
-          infowindow.open(map, marker);
-          currentInfoWindow = infowindow;
+          marker.setAnimation(google.maps.Animation.BOUNCE);
+          activeMarker = marker;
         });
 
         return marker;
       }
 
-      function updateMapWithSearch(places) {
-        searchMarkers.forEach(marker => {
-          marker.setMap(null);
-        });
-        searchMarkers = [];
-
-        places.forEach(place => {
-        const location = {
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        name: place.name || "ผลการค้นหา",
-        type: 'search', // 👈 เพิ่มตรงนี้เพื่อใช้ defaultIcon
-        image: '',      // ใส่ไว้ให้ InfoWindow ไม่พัง (จะใส่ URL ภาพก็ได้)
-        nearby: []      // หรือเพิ่มสถานที่ใกล้เคียงถ้ามี
-      };
-
-        const marker = createMarker(location); // 👈 ใช้ createMarker() เหมือนตัวหลัก
-        searchMarkers.push(marker);
-
-        map.setCenter(place.geometry.location);
-        map.setZoom(15);
-        marker.setAnimation(google.maps.Animation.BOUNCE);
-      });
-
+      function showLocationDetails(location) {
+        panelImage.src = location.image || 'https://via.placeholder.com/200x130?text=No+Image';
+        panelName.textContent = location.name;
+        
+        const nearbyContainer = document.getElementById('panel-nearby-container');
+        if (location.nearby && location.nearby.length > 0) {
+          panelNearbyList.innerHTML = location.nearby.map(place => `<li>${place}</li>`).join('');
+          nearbyContainer.style.display = 'block';
+        } else {
+          nearbyContainer.style.display = 'none';
+        }
+        
+        locationPanel.classList.add('visible');
       }
 
+      function hideLocationDetails() {
+        locationPanel.classList.remove('visible');
+        if (activeMarker) {
+          activeMarker.setAnimation(null);
+          activeMarker = null;
+        }
+      }
+
+      function updateMapWithSearch(places) {
+        hideLocationDetails();
+        searchMarkers.forEach(marker => marker.setMap(null));
+        searchMarkers = [];
+
+        const bounds = new google.maps.LatLngBounds();
+
+        places.forEach(place => {
+          if (!place.geometry || !place.geometry.location) return;
+
+          const location = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            name: place.name || "ผลการค้นหา",
+            type: 'search',
+            image: place.photos ? place.photos[0].getUrl() : '',
+            nearby: []
+          };
+
+          const marker = createMarker(location);
+          searchMarkers.push(marker);
+
+          if (place.geometry.viewport) {
+            bounds.union(place.geometry.viewport);
+          } else {
+            bounds.extend(place.geometry.location);
+          }
+        });
+        map.fitBounds(bounds);
+      }
+      
       function filterMarkers(type) {
+        hideLocationDetails(); // ซ่อน panel ที่เปิดอยู่
+
+        // 1. ลบหมุดทั้งหมดออกจากแผนที่
         markers.forEach(marker => {
           marker.setMap(null);
         });
+        searchMarkers.forEach(marker => {
+          marker.setMap(null);
+        });
 
+        // 2. เคลียร์ array ของหมุด
         markers = [];
-
-        if (type === "all") {
-          addMarkers();
-        } else {
-          locations.forEach(location => {
-            if (location.type === type) {
-              const marker = createMarker(location);
-              markers.push(marker);
-            }
-          });
-        }
+        searchMarkers = [];
+        
+        // 3. วนลูปสร้างหมุดใหม่ตามประเภทที่เลือก
+        locations.forEach(location => {
+          if (type === 'all' || location.type === type) {
+            const marker = createMarker(location);
+            markers.push(marker);
+          }
+        });
+        
+        // ซ่อนหมุดผลการค้นหาเสมอเมื่อมีการฟิลเตอร์
+        searchMarkers.forEach(marker => marker.setVisible(false));
       }
     </script>
   </body>
