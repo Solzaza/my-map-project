@@ -1,0 +1,179 @@
+:root {
+  --brand-purple: #4A00E0;
+  --text-dark: #222222;
+  --text-light: #717171;
+  --border-color: #EBEBEB;
+  --background-light-gray: #F7F7F7;
+  --background-white: #FFFFFF; /* สีขาวทึบ */
+}
+
+body, html {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--background-white);
+  color: var(--text-dark);
+  overflow: hidden; /* ป้องกันการ scroll ทั้งหน้า */
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* --- Top Controls Section --- */
+#controls {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background-color: var(--background-white);
+}
+
+#searchInput, #filter {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 16px;
+  border: 1px solid #B0B0B0;
+  border-radius: 24px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#searchInput {
+  width: 400px;
+}
+
+#searchInput:focus, #filter:focus {
+  border-color: var(--brand-purple);
+  box-shadow: 0 0 0 3px rgba(74, 0, 224, 0.1);
+}
+
+#filter {
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%208l5%205%205-5z%22%20fill%3D%22%23222%22/%3E%3C/svg%3E');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+/* --- Map & Panel Container --- */
+#map-container {
+  position: relative;
+  /* ปรับความสูงให้พอดีกับส่วนที่เหลือ (ลบความสูงของ #controls ออก) */
+  height: calc(100vh - 61px); 
+  width: 100%;
+  overflow: hidden; /* สำคัญมาก: ป้องกัน panel ล้นออกมา */
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+}
+
+/* --- Location Details Panel (Bottom Panel) --- */
+#location-details-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* !!! บรรทัดสำคัญอยู่ตรงนี้ครับ !!! */
+  /* เรากำหนดให้พื้นหลังเป็นสีขาวทึบจากตัวแปร --background-white */
+  background: var(--background-white); 
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  
+  /* Animation setup */
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+#location-details-panel.visible {
+  transform: translateY(0);
+}
+
+#panel-content {
+  display: flex;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+  align-items: center;
+}
+
+#panel-image {
+  width: 200px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background-color: #f0f0f0;
+}
+
+#panel-text {
+  text-align: left;
+  flex-grow: 1;
+}
+
+#panel-name {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.nearby-title {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+#panel-nearby-list {
+  list-style-type: '— ';
+  padding-left: 20px;
+  margin: 0;
+  color: #484848;
+}
+
+#panel-nearby-list li {
+  padding: 3px 0;
+  font-size: 14px;
+}
+
+#close-panel-btn {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  background: #e0e0e0;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 20px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  color: #555;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+#close-panel-btn:hover {
+  background: #d1d1d1;
+  transform: scale(1.1);
+}
+
+/* --- Marker Animation --- */
+@keyframes bounce {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-10px); }
+}
+
+.gmnoprint[style*="animation-name: bounce"] {
+  animation: bounce 0.5s infinite alternate !important;
+}
